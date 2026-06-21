@@ -17,6 +17,7 @@ public class Game
     bool    _gameOver          = false;
     bool    _craftingOpen      = false;
     bool    _pauseOpen            = false;
+    bool    _helpOpen             = true;  // shown on startup; toggle with H
     int     _selectedRecipe       = 0;
     int     _recipeScrollOffset   = 0;
     bool    _bossKilled           = false;
@@ -231,8 +232,17 @@ public class Game
             return;
         }
 
-        // Fast-forward day (F key, debug)
-        _dnc.SetFastForward(IsKeyDown(KeyboardKey.F));
+        // Help / how-to-play screen — freezes the game while open
+        if (_helpOpen)
+        {
+            if (IsKeyPressed(KeyboardKey.Space) || IsKeyPressed(KeyboardKey.Enter)
+                || IsKeyPressed(KeyboardKey.KpEnter) || IsKeyPressed(KeyboardKey.H))
+                _helpOpen = false;
+            return;
+        }
+
+        // Fast-forward day (T key, debug)
+        _dnc.SetFastForward(IsKeyDown(KeyboardKey.T));
         _dnc.Update(dt);
 
         _player.Update(dt);
@@ -320,6 +330,9 @@ public class Game
             if (_craftingOpen) { _craftingOpen = false; _selectedRecipe = 0; }
             else               { _pauseOpen = !_pauseOpen; }
         }
+
+        // H: reopen the help / how-to-play screen anytime
+        if (IsKeyPressed(KeyboardKey.H) && !_craftingOpen) { _helpOpen = true; return; }
 
         if (_pauseOpen)
         {
@@ -1279,6 +1292,7 @@ public class Game
         if (_pauseOpen)               DrawPauseScreen();
         if (_daySummaryTimer > 0 && !_pauseOpen) DrawDaySummary();
         if (_gameOver)                DrawGameOver();
+        if (_helpOpen)                DrawHelpScreen();
 
         EndDrawing();
     }
@@ -1530,8 +1544,8 @@ public class Game
                     : nc  ? "E: Open Crafting Table"
                     : ncf ? "CAMPFIRE: Hunger + Thirst restoring"
                     : _player.Explosives > 0
-            ? "G: Throw Explosive  WASD move  LClick shoot/swing  RClick build  F eat"
-            : "WASD/Arrows move  LClick shoot/mine/swing  RClick build  F eat  Space jump";
+            ? "G: Throw Explosive  WASD move  LClick shoot/swing  RClick build  F eat  H help"
+            : "WASD move  LClick shoot/mine/swing  RClick build  F eat  Space jump  H help";
         Color hintCol = (ncr || nc) ? Color.Yellow
                       : ncf         ? new Color((byte)255,(byte)150,(byte)50,(byte)255)
                       : Color.Gray;
@@ -1743,6 +1757,98 @@ public class Game
         DrawText(msg, sw/2 - MeasureText(msg, 60)/2, sh/2 - 50, 60, Color.Red);
         string sub = $"Survived {_dnc.NightCount} night(s)  |  Kills: {_killCount}  |  Press R to restart";
         DrawText(sub, sw/2 - MeasureText(sub, 24)/2, sh/2 + 30, 24, Color.White);
+    }
+
+    void DrawHelpScreen()
+    {
+        int sw = GetScreenWidth(), sh = GetScreenHeight();
+        DrawRectangle(0, 0, sw, sh, new Color((byte)8,(byte)10,(byte)16,(byte)235));
+
+        // Panel
+        int pw = Math.Min(960, sw - 40), ph = Math.Min(620, sh - 30);
+        int px = sw/2 - pw/2, py = sh/2 - ph/2;
+        DrawRectangle(px, py, pw, ph, new Color((byte)18,(byte)20,(byte)28,(byte)255));
+        DrawRectangleLines(px, py, pw, ph, new Color((byte)120,(byte)90,(byte)40,(byte)255));
+
+        // Title
+        string title = "BUILD TO SURVIVE: MONSTERS";
+        DrawText(title, sw/2 - MeasureText(title, 34)/2, py + 22, 34,
+            new Color((byte)230,(byte)180,(byte)70,(byte)255));
+        string tag = "Mine by day  ·  Build your base  ·  Survive the night";
+        DrawText(tag, sw/2 - MeasureText(tag, 16)/2, py + 62, 16, Color.Gray);
+        DrawLine(px + 24, py + 92, px + pw - 24, py + 92,
+            new Color((byte)70,(byte)60,(byte)40,(byte)255));
+
+        int colY   = py + 108;
+        int leftX  = px + 32;
+        int rightX = px + pw/2 + 16;
+
+        // ── Left column: HOW TO PLAY (the flow) ──
+        DrawText("HOW TO PLAY", leftX, colY, 20, new Color((byte)120,(byte)200,(byte)120,(byte)255));
+        string[] flow =
+        {
+            "DAYTIME is safe. Mine wood, stone & iron",
+            "(hold Left-Click with a pickaxe). Crack open",
+            "loot crates with E.",
+            "",
+            "BUILD a base before dark: place walls, spike",
+            "traps, turrets & torches with Right-Click.",
+            "",
+            "CRAFT at a Crafting Table (E nearby) — better",
+            "weapons, armor, ammo, healing & explosives.",
+            "",
+            "NIGHT brings zombie waves. Survive til dawn.",
+            "Each night is harder: runners, armoured,",
+            "poison, bosses & giants. Clear a wave for",
+            "bonus loot.",
+            "",
+            "LEVEL UP from kills for more HP & speed.",
+            "Watch FOOD & H2O — eat (F), drink at water",
+            "or in rain, and rest near a campfire.",
+            "",
+            "Die and you respawn briefly invincible.",
+            "Hit max level, then Prestige (P) for power.",
+        };
+        for (int i = 0; i < flow.Length; i++)
+            DrawText(flow[i], leftX, colY + 30 + i * 19, 15, Color.LightGray);
+
+        // ── Right column: CONTROLS ──
+        DrawText("CONTROLS", rightX, colY, 20, new Color((byte)120,(byte)180,(byte)230,(byte)255));
+        (string key, string act)[] controls =
+        {
+            ("WASD / Arrows", "Move"),
+            ("Space",         "Jump"),
+            ("Shift (hold)",  "Sprint (uses stamina)"),
+            ("Mouse",         "Look"),
+            ("",              ""),
+            ("Left Click",    "Shoot / Mine / Swing"),
+            ("Right Click",   "Place block from hotbar"),
+            ("1-9 / Wheel",   "Select hotbar slot"),
+            ("G",             "Throw explosive"),
+            ("",              ""),
+            ("F",             "Eat food"),
+            ("E",             "Interact (crate / table)"),
+            ("",              ""),
+            ("H",             "Toggle this help"),
+            ("Esc",           "Pause / close menu"),
+            ("P",             "Prestige (at max level)"),
+            ("R / Q",         "Restart / Quit (when paused)"),
+        };
+        for (int i = 0; i < controls.Length; i++)
+        {
+            int ry = colY + 30 + i * 19;
+            if (controls[i].key.Length == 0) continue;
+            DrawText(controls[i].key, rightX, ry, 15,
+                new Color((byte)235,(byte)205,(byte)110,(byte)255));
+            DrawText(controls[i].act, rightX + 130, ry, 15, Color.LightGray);
+        }
+
+        // Footer prompt (pulsing)
+        float pulse = (MathF.Sin((float)GetTime() * 4f) + 1f) * 0.5f;
+        byte fa = (byte)(int)(pulse * 120 + 135);
+        string go = "Press  SPACE / ENTER  to play          (H anytime to reopen)";
+        DrawText(go, sw/2 - MeasureText(go, 18)/2, py + ph - 36, 18,
+            new Color((byte)255,(byte)230,(byte)120,fa));
     }
 
     void DrawTurretBarrels()

@@ -6,6 +6,26 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 26 — Startup Help Screen & Control Cleanup  *(2026-06-21)*
+
+**How-to-play / controls screen**
+- New full-screen help overlay shown on startup before the game begins
+- Two columns: **HOW TO PLAY** (the day→build→craft→night survival flow) and **CONTROLS** (full key reference)
+- Dismiss with Space / Enter to start playing; pulsing prompt at the bottom
+- Re-openable anytime with **H** (freezes the game while open, like pause)
+- `DrawHelpScreen()` in Game.cs; gated by new `_helpOpen` field (defaults true)
+- Bottom HUD hint now mentions "H help"
+- *This screen is the living reference — update it each session as controls/features change.*
+
+**Control fix: F was double-bound (bug)**
+- F both ate food AND fast-forwarded the day (debug) — eating always skipped time
+- Debug fast-forward moved off F onto **T**; F is now purely "eat food"
+
+**Cleanup**
+- Removed unused `hw` local in `Player.MoveAndCollide` (was the only build warning) — build now 0 warnings
+
+---
+
 ## Sprint 25 — Ghost Zombie, Shadow Blade, Cave Markers, Prestige Badge  *(2026-06-21)*
 
 **Ghost Zombie** (night 7+, ~1/10 shamblers)

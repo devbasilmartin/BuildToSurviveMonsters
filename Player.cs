@@ -144,8 +144,6 @@ public class Player
     void MoveAndCollide(ref Vector3 delta, float dt, bool horizontal)
     {
         // Try to move; walk back out of any solid voxels we entered
-        const float hw = Width / 2f;
-
         if (horizontal)
         {
             // test X and Z separately

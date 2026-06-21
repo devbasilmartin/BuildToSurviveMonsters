@@ -25,7 +25,8 @@ public class Zombie
     public bool IsGigant   { get; private set; }
     public bool IsGhost    { get; private set; }
     public int  XPReward   { get; private set; }
-    public float SpeedMult = 1f;
+    public float SpeedMult       = 1f;
+    public float DamageMultiplier = 1f;  // set by cursed night
     readonly VoxelWorld _world;
 
     public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false, bool isShaman = false, bool isPoison = false, bool isGigant = false, bool isGhost = false)
