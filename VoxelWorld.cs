@@ -39,7 +39,7 @@ public class VoxelWorld
         _voxels[Idx(x, y, z)] = id;
     }
 
-    public bool IsSolid(int x, int y, int z) => GetVoxel(x, y, z) != 0;
+    public bool IsSolid(int x, int y, int z) => Blocks.IsSolid(GetVoxel(x, y, z));
 
     public bool IsWalkable(int x, int y, int z) =>
         !IsSolid(x, y, z) && IsSolid(x, y - 1, z);

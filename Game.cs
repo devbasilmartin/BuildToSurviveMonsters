@@ -29,6 +29,15 @@ public class Game
     float   _invincibleTimer   = 0f;
     float   _spikeTimer        = 0f;
     Vector3 _spawnPos;
+
+    // Minimap cache
+    const int MM_RANGE = 20;
+    const int MM_SCALE = 2;
+    const int MM_SIZE  = MM_RANGE * 2 * MM_SCALE; // 80px
+    readonly Color[,] _mmColors = new Color[MM_RANGE * 2, MM_RANGE * 2];
+    float _mmAge = 0f;
+    bool  _mmDirty = true;
+
     readonly Random _rng       = new();
 
     struct Bullet { public Vector3 Pos; public Vector3 Dir; public float Life; }
@@ -192,6 +201,10 @@ public class Game
 
         // Boss warning timer
         if (_bossWarningTimer > 0) _bossWarningTimer -= dt;
+
+        // Minimap refresh
+        _mmAge += dt;
+        if (_mmAge >= 1f) { _mmAge = 0f; _mmDirty = true; }
 
         // Sync camera to player look
         _camera.Position = _player.EyePos;
@@ -443,6 +456,8 @@ public class Game
         _bossWarningTimer = 0f;
         _invincibleTimer  = 0f;
         _spikeTimer       = 0f;
+        _mmDirty          = true;
+        _mmAge            = 0f;
         Init();
         _gameOver = false;
     }
@@ -645,15 +660,18 @@ public class Game
                          : Color.White;
         DrawText(phase, sw/2 - MeasureText(phase, 20)/2, 10, 20, phaseColor);
 
-        // Kill count + death count
-        DrawText($"Kills: {_killCount}", sw - 160, 10, 18, Color.Orange);
+        // Kill count + death count (left of minimap)
+        DrawText($"Kills: {_killCount}", sw - MM_SIZE - 100, 10, 18, Color.Orange);
         if (_deathCount > 0)
-            DrawText($"Deaths: {_deathCount}", sw - 160, 32, 15,
+            DrawText($"Deaths: {_deathCount}", sw - MM_SIZE - 100, 30, 15,
                 new Color((byte)200,(byte)80,(byte)80,(byte)255));
 
         // Active zombie count during night
         if (_dnc.Phase == DayPhase.Night)
-            DrawText($"Zombies: {_waves.Active.Count}", sw - 180, 32, 18, Color.Orange);
+            DrawText($"Zombies: {_waves.Active.Count}", sw - MM_SIZE - 110, 48, 15, Color.Orange);
+
+        // Minimap (top-right corner)
+        DrawMinimap(sw - MM_SIZE - 10, 10);
 
         // Inventory
         DrawText("Resources:", 10, 10, 16, Color.White);
@@ -833,6 +851,74 @@ public class Game
             DrawSphere(new Vector3(cx+0.5f, cy+1.1f+bob, cz+0.5f), 0.18f,
                 new Color((byte)255,(byte)210,(byte)60,(byte)200));
         }
+    }
+
+    void DrawMinimap(int ox, int oy)
+    {
+        // Rebuild terrain cache once per second
+        if (_mmDirty)
+        {
+            int pcx = (int)_player.Position.X, pcz = (int)_player.Position.Z;
+            for (int dz = 0; dz < MM_RANGE * 2; dz++)
+            for (int dx = 0; dx < MM_RANGE * 2; dx++)
+            {
+                int wx = pcx + dx - MM_RANGE;
+                int wz = pcz + dz - MM_RANGE;
+                _mmColors[dx, dz] = MinimapSurface(wx, wz);
+            }
+            _mmDirty = false;
+        }
+
+        // Border
+        DrawRectangle(ox - 2, oy - 2, MM_SIZE + 4, MM_SIZE + 4,
+            new Color((byte)0,(byte)0,(byte)0,(byte)200));
+        DrawText("MAP", ox + MM_SIZE/2 - MeasureText("MAP",10)/2, oy - 13, 10, Color.DarkGray);
+
+        // Terrain
+        for (int dz = 0; dz < MM_RANGE * 2; dz++)
+        for (int dx = 0; dx < MM_RANGE * 2; dx++)
+            DrawRectangle(ox + dx * MM_SCALE, oy + dz * MM_SCALE,
+                MM_SCALE, MM_SCALE, _mmColors[dx, dz]);
+
+        // Zombie dots
+        int pcxd = (int)_player.Position.X, pczd = (int)_player.Position.Z;
+        foreach (var z in _waves.Active)
+        {
+            if (z.IsDead) continue;
+            int zdx = (int)(z.Position.X - pcxd) + MM_RANGE;
+            int zdz = (int)(z.Position.Z - pczd) + MM_RANGE;
+            if (zdx < 0 || zdx >= MM_RANGE*2 || zdz < 0 || zdz >= MM_RANGE*2) continue;
+            Color dot = z.IsBoss ? Color.Magenta : Color.Red;
+            DrawRectangle(ox + zdx * MM_SCALE - 1, oy + zdz * MM_SCALE - 1, 3, 3, dot);
+        }
+
+        // Player dot (always centre, white)
+        DrawRectangle(ox + MM_RANGE * MM_SCALE - 2, oy + MM_RANGE * MM_SCALE - 2,
+            4, 4, Color.White);
+    }
+
+    Color MinimapSurface(int x, int z)
+    {
+        for (int y = Math.Min(_world.SizeY - 1, 20); y >= 0; y--)
+        {
+            byte b = _world.GetVoxel(x, y, z);
+            if (!_world.IsSolid(x, y, z)) continue;
+            return b switch {
+                1        => new Color((byte)120,(byte)72,(byte)0,(byte)255),
+                2        => new Color((byte)90,(byte)90,(byte)90,(byte)255),
+                3        => new Color((byte)80,(byte)50,(byte)20,(byte)255),
+                6        => new Color((byte)34,(byte)120,(byte)34,(byte)255),
+                7        => new Color((byte)160,(byte)80,(byte)20,(byte)255),
+                9        => new Color((byte)180,(byte)100,(byte)40,(byte)255),
+                10 or 14 or 15
+                         => new Color((byte)220,(byte)160,(byte)30,(byte)255),
+                13       => new Color((byte)200,(byte)80,(byte)20,(byte)255),
+                4 or 5 or 12
+                         => new Color((byte)180,(byte)180,(byte)200,(byte)255),
+                _        => new Color((byte)70,(byte)70,(byte)80,(byte)255),
+            };
+        }
+        return new Color((byte)15,(byte)15,(byte)20,(byte)255);
     }
 
     void DrawCampfireFlames()

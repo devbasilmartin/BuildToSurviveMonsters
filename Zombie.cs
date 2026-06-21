@@ -51,15 +51,34 @@ public class Zombie
         Vector3 toPlayer = player.Position - Position;
         float dist = toPlayer.Length();
 
-        // Walk toward player (straight line — no pathfinding in first pass)
+        // Walk toward player — slide along walls instead of clipping through
         if (dist > 1.5f)
         {
             Vector3 dir = Vector3.Normalize(new Vector3(toPlayer.X, 0, toPlayer.Z));
-            Vector3 move = dir * _speed * dt;
-            // Simple horizontal movement — no gravity for now (keep on surface)
-            Position.X += move.X;
-            Position.Z += move.Z;
-            // Snap Y to terrain surface
+            float step = _speed * dt;
+
+            // X axis: try direct, else try perpendicular slides
+            float nx = Position.X + dir.X * step;
+            if (!BlockedAt(nx, Position.Z))
+                Position.X = nx;
+            else
+            {
+                float slide = dir.Z * step * 0.6f;
+                if (!BlockedAt(Position.X + slide, Position.Z))       Position.X += slide;
+                else if (!BlockedAt(Position.X - slide, Position.Z))  Position.X -= slide;
+            }
+
+            // Z axis: try direct, else try perpendicular slides
+            float nz = Position.Z + dir.Z * step;
+            if (!BlockedAt(Position.X, nz))
+                Position.Z = nz;
+            else
+            {
+                float slide = dir.X * step * 0.6f;
+                if (!BlockedAt(Position.X, Position.Z + slide))       Position.Z += slide;
+                else if (!BlockedAt(Position.X, Position.Z - slide))  Position.Z -= slide;
+            }
+
             Position.Y = SurfaceY(Position.X, Position.Z);
         }
         else
@@ -76,6 +95,21 @@ public class Zombie
     }
 
     public void TakeDamage(int amount) { HP = Math.Max(0, HP - amount); _hitFlash = 1f; }
+
+    bool BlockedAt(float x, float z)
+    {
+        float r = IsBoss ? 0.6f : 0.35f;
+        int y = (int)MathF.Floor(Position.Y);
+        for (int dy = 0; dy <= 1; dy++)
+        {
+            if (_world.IsSolid((int)MathF.Floor(x - r), y + dy, (int)MathF.Floor(z)) ||
+                _world.IsSolid((int)MathF.Floor(x + r), y + dy, (int)MathF.Floor(z)) ||
+                _world.IsSolid((int)MathF.Floor(x), y + dy, (int)MathF.Floor(z - r)) ||
+                _world.IsSolid((int)MathF.Floor(x), y + dy, (int)MathF.Floor(z + r)))
+                return true;
+        }
+        return false;
+    }
 
     float SurfaceY(float x, float z)
     {

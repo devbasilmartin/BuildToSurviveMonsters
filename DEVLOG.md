@@ -6,6 +6,28 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 8 — Minimap, Zombie Wall-Avoidance, IsSolid Bug Fix  *(2026-06-21)*
+
+**Bug fix: VoxelWorld.IsSolid**
+- `VoxelWorld.IsSolid` was `GetVoxel != 0` — it ignored `Blocks.IsSolid` entirely
+- Torches (16) and spike traps (17) were blocking player + zombie movement even though defined as non-solid
+- Fixed to `Blocks.IsSolid(GetVoxel(x,y,z))` — one line, propagates correct semantics everywhere: player collision, bullet termination, zombie SurfaceY, spawn drops
+
+**Minimap** (top-right corner, 80×80px)
+- Shows a 20-block radius around the player, 2px per block
+- Terrain colours: dirt brown, stone grey, leaves green, iron ore orange, walls white-grey, crates yellow, campfire orange, crafting table warm brown
+- Red dots for live zombies; magenta for boss; white dot for player (always centred)
+- Cache rebuilt every 1 second (cheap: 1600 color lookups at y≤20 scan depth)
+- Stays dirty until rebuilt; force-dirtied on restart
+
+**Zombie wall-avoidance**
+- Zombies now slide along walls instead of clipping through player-built defences
+- X/Z axes resolved separately; if direct path blocked, two perpendicular slide attempts tried at 60% speed
+- Boss zombie uses wider collision radius (0.6 vs 0.35) matching its larger visual
+- `BlockedAt(x, z)` checks y and y+1 heights so torso-level walls are respected
+
+---
+
 ## Sprint 7 — Respawn, Spike Trap, Boss Warning  *(2026-06-21)*
 
 **Player respawn** (replaces hard game-over)
@@ -174,7 +196,7 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
-- [ ] Minimap (top-down 2D overlay, updates as player explores)
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Zombie pathfinding: simple wall-avoidance so zombies don't get stuck
-- [ ] Score screen on deliberate quit (not death); show nights survived + kills
+- [ ] Score screen on Escape key; show nights, kills, deaths; confirm-to-quit
+- [ ] Iron Pickaxe: faster mining speed multiplier when equipped
+- [ ] More world variety: rivers, different biomes, larger ore deposits night 3+
