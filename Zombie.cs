@@ -64,12 +64,13 @@ public class Zombie
         }
         else
         {
-            // Attack
+            // Attack (skip if player is invincible after respawn)
             _attackTimer += dt;
             if (_attackTimer >= 1f / _attackRate)
             {
                 _attackTimer = 0f;
-                player.TakeDamage((int)_damage);
+                if (!player.Invincible)
+                    player.TakeDamage((int)_damage);
             }
         }
     }

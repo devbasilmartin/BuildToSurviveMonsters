@@ -6,6 +6,28 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 7 — Respawn, Spike Trap, Boss Warning  *(2026-06-21)*
+
+**Player respawn** (replaces hard game-over)
+- On death: player teleports back to world spawn point with 50 HP and 8 seconds invincibility
+- `Player.Respawn(spawnPos)` resets velocity so no physics glitch on teleport
+- Zombie melee checks `player.Invincible` before dealing damage
+- Pulsing cyan screen-border + countdown timer shown while invincible
+- Death count tracked (`_deathCount`) — shown in HUD top-right in red below kill count
+- Bullets cleared, crafting menu closed, starvation timer reset on respawn
+
+**Spike Trap** (blockId 17, hotbar slot 6)
+- Non-solid — zombies and player walk through it; costs 2 stone to place from hotbar
+- Deals 15 damage to any zombie standing on it every 0.5 seconds
+- Boss zombies can be worn down by a ring of spikes
+- 5 thin spike-columns drawn above each nearby trap in 3D for visibility
+
+**Boss Warning Banner**
+- On night 5+ start: 5-second pulsing orange "⚠ BOSS ZOMBIE INCOMING ⚠" text above screen centre
+- Timer ticks in Update so the fade-out is smooth and frame-rate independent
+
+---
+
 ## Sprint 6 — Crate Variety, Torch, Zombie Boss  *(2026-06-21)*
 
 **Loot crate variety**
@@ -150,10 +172,9 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ## Backlog
 
-- [ ] Player respawn at spawn with 50 HP on death (instead of hard game-over)
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Minimap (top-down 2D overlay, updates as player explores)
-- [ ] Boss warning banner when boss zombie spawns night 5+
-- [ ] Chest block: placeable storage, right-click deposits/withdraws items
-- [ ] Spike trap: placed on ground, damages zombies that walk over it
+- [ ] Chest block: placeable storage, right-click opens inventory UI
+- [ ] Zombie pathfinding: simple wall-avoidance so zombies don't get stuck
+- [ ] Score screen on deliberate quit (not death); show nights survived + kills

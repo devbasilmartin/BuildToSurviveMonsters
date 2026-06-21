@@ -54,6 +54,7 @@ public class Player
         HotbarBlocks[3] = (12,  0); // slot 3 = iron wall
         HotbarBlocks[4] = (13,  0); // slot 4 = campfire
         HotbarBlocks[5] = (16,  0); // slot 5 = torch
+        HotbarBlocks[6] = (17,  0); // slot 6 = spike trap
     }
 
     public Vector3 EyePos => Position + new Vector3(0, EyeHeight, 0);
@@ -272,9 +273,10 @@ public class Player
     }
 
     public int   Ammo;
-    public int   ArmorTier = 0; // 0=none  1=wood(-15%)  2=stone(-35%)
-    public float Hunger    = 100f;
-    public float Thirst    = 100f;
+    public int   ArmorTier  = 0; // 0=none  1=wood(-15%)  2=stone(-35%)  3=iron(-55%)
+    public float Hunger     = 100f;
+    public float Thirst     = 100f;
+    public bool  Invincible = false;
 
     public bool IsMeleeSelected => HotbarBlocks[SelectedSlot].blockId is 252 or 253 or 254;
     public bool IsWeaponSelected => IsGunSelected || IsMeleeSelected;
@@ -289,4 +291,13 @@ public class Player
     }
 
     public bool IsDead => HP <= 0;
+
+    public void Respawn(Vector3 spawnPos)
+    {
+        Position   = spawnPos;
+        HP         = 50;
+        Invincible = true;
+        _velY      = 0;
+        _grounded  = false;
+    }
 }

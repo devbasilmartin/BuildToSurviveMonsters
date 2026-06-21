@@ -14,17 +14,22 @@ public class Game
     const int   GunDamage = 50;
     const float GunRange  = 50f;
 
-    bool  _gameOver        = false;
-    bool  _craftingOpen    = false;
-    float _gunRecoil       = 0f;
-    float _meleeSwing      = 0f;
-    float _meleeCooldown   = 0f;
-    float _starvationTimer = 0f;
-    int   _killCount        = 0;
-    bool  _nightCleared     = false;
-    float _nightStartDelay  = 0f;   // prevents false clear at night start
-    float _clearBannerTimer = 0f;   // how long to show "WAVE CLEARED!" banner
-    readonly Random _rng    = new();
+    bool    _gameOver          = false;
+    bool    _craftingOpen      = false;
+    float   _gunRecoil         = 0f;
+    float   _meleeSwing        = 0f;
+    float   _meleeCooldown     = 0f;
+    float   _starvationTimer   = 0f;
+    int     _killCount         = 0;
+    int     _deathCount        = 0;
+    bool    _nightCleared      = false;
+    float   _nightStartDelay   = 0f;
+    float   _clearBannerTimer  = 0f;
+    float   _bossWarningTimer  = 0f;
+    float   _invincibleTimer   = 0f;
+    float   _spikeTimer        = 0f;
+    Vector3 _spawnPos;
+    readonly Random _rng       = new();
 
     struct Bullet { public Vector3 Pos; public Vector3 Dir; public float Life; }
     readonly System.Collections.Generic.List<Bullet> _bullets = new();
@@ -59,12 +64,17 @@ public class Game
         for (int y = _world.SizeY - 1; y >= 0; y--)
             if (_world.IsSolid(cx, y, cz)) { spawnY = y + 1f; break; }
 
-        _player = new Player(_world, new Vector3(cx, spawnY, cz));
+        _spawnPos = new Vector3(cx, spawnY, cz);
+        _player = new Player(_world, _spawnPos);
 
         // Day/night
         _dnc = new DayNightCycle();
-        _dnc.OnNightStart += () => { _nightCleared = false; _nightStartDelay = 2f; };
-        _dnc.OnDayStart   += () => { _nightCleared = false; };
+        _dnc.OnNightStart += () => {
+            _nightCleared     = false;
+            _nightStartDelay  = 2f;
+            if (_dnc.NightCount >= 5) _bossWarningTimer = 5f;
+        };
+        _dnc.OnDayStart += () => { _nightCleared = false; };
 
         // Enemies
         _waves = new WaveSpawner(_world, _dnc);
@@ -169,14 +179,50 @@ public class Game
         _meleeSwing = Math.Max(0f, _meleeSwing - dt * 6f);
         UpdateBullets(dt);
 
+        // Spike traps: damage zombies standing on them every 0.5s
+        _spikeTimer += dt;
+        if (_spikeTimer >= 0.5f) { _spikeTimer = 0f; UpdateSpikeTraps(); }
+
+        // Invincibility countdown
+        if (_invincibleTimer > 0)
+        {
+            _invincibleTimer -= dt;
+            if (_invincibleTimer <= 0) _player.Invincible = false;
+        }
+
+        // Boss warning timer
+        if (_bossWarningTimer > 0) _bossWarningTimer -= dt;
+
         // Sync camera to player look
         _camera.Position = _player.EyePos;
         _camera.Target   = _player.EyePos + _player.Forward;
 
-        if (_player.IsDead)
+        // Respawn instead of game-over
+        if (_player.IsDead) DoRespawn();
+    }
+
+    void DoRespawn()
+    {
+        _player.Respawn(_spawnPos);
+        _invincibleTimer  = 8f;
+        _starvationTimer  = 0f;
+        _craftingOpen     = false;
+        _bullets.Clear();
+        _deathCount++;
+    }
+
+    void UpdateSpikeTraps()
+    {
+        foreach (var z in _waves.Active)
         {
-            _gameOver = true;
-            EnableCursor();
+            if (z.IsDead) continue;
+            var vox = VoxelWorld.WorldToVoxel(z.Position);
+            if (_world.GetVoxel(vox.X, vox.Y, vox.Z) == 17)
+            {
+                bool wasDead = z.IsDead;
+                z.TakeDamage(15);
+                if (z.IsDead && !wasDead) AwardKill(z);
+            }
         }
     }
 
@@ -391,8 +437,12 @@ public class Game
     {
         _craftingOpen     = false;
         _killCount        = 0;
+        _deathCount       = 0;
         _nightCleared     = false;
         _clearBannerTimer = 0f;
+        _bossWarningTimer = 0f;
+        _invincibleTimer  = 0f;
+        _spikeTimer       = 0f;
         Init();
         _gameOver = false;
     }
@@ -437,9 +487,10 @@ public class Game
         foreach (var b in _bullets)
             DrawSphere(b.Pos, 0.07f, new Color((byte)255,(byte)220,(byte)50,(byte)255));
 
-        // Campfire flames + torch glow
+        // Campfire flames + torch glow + spike decorations
         DrawCampfireFlames();
         DrawTorchGlow();
+        DrawSpikeDecorations();
 
         // Viewmodel
         {
@@ -594,8 +645,11 @@ public class Game
                          : Color.White;
         DrawText(phase, sw/2 - MeasureText(phase, 20)/2, 10, 20, phaseColor);
 
-        // Kill count always visible
-        DrawText($"Kills: {_killCount}", sw - 150, 10, 18, Color.Orange);
+        // Kill count + death count
+        DrawText($"Kills: {_killCount}", sw - 160, 10, 18, Color.Orange);
+        if (_deathCount > 0)
+            DrawText($"Deaths: {_deathCount}", sw - 160, 32, 15,
+                new Color((byte)200,(byte)80,(byte)80,(byte)255));
 
         // Active zombie count during night
         if (_dnc.Phase == DayPhase.Night)
@@ -658,6 +712,11 @@ public class Game
                 DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)100,(byte)70,(byte)10,(byte)255));
                 DrawText("TRCH", bx+2, hotbarY+14, 10, new Color((byte)255,(byte)210,(byte)60,(byte)255));
             }
+            else if (slot.blockId == 17)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)50,(byte)50,(byte)60,(byte)255));
+                DrawText("SPIK", bx+2, hotbarY+14, 10, new Color((byte)160,(byte)160,(byte)180,(byte)255));
+            }
             else if (slot.blockId != 0)
             {
                 var col = Blocks.Get(slot.blockId).Color;
@@ -702,6 +761,33 @@ public class Game
             DrawText(banner, sw/2 - bw/2, sh/2 - 70, 28,
                 new Color((byte)80,(byte)255,(byte)80,alpha));
         }
+
+        // Boss warning banner
+        if (_bossWarningTimer > 0)
+        {
+            float pulse = (MathF.Sin((float)GetTime() * 8f) + 1f) * 0.5f;
+            byte alpha = (byte)(int)(Math.Min(1f, _bossWarningTimer) * 220);
+            string warn = "⚠  BOSS ZOMBIE INCOMING  ⚠";
+            int ww = MeasureText(warn, 26);
+            DrawRectangle(sw/2 - ww/2 - 16, sh/2 - 130, ww + 32, 44,
+                new Color((byte)0,(byte)0,(byte)0,(byte)160));
+            DrawText(warn, sw/2 - ww/2, sh/2 - 120, 26,
+                new Color((byte)255,(byte)(int)(100 + pulse*80),(byte)0,alpha));
+        }
+
+        // Invincibility overlay (pulsing cyan border)
+        if (_player.Invincible)
+        {
+            float pulse = (MathF.Sin((float)GetTime() * 10f) + 1f) * 0.5f;
+            byte ba = (byte)(int)(pulse * 100 + 30);
+            DrawRectangle(0, 0, sw, 10, new Color((byte)0,(byte)200,(byte)255,ba));
+            DrawRectangle(0, sh-10, sw, 10, new Color((byte)0,(byte)200,(byte)255,ba));
+            DrawRectangle(0, 0, 10, sh, new Color((byte)0,(byte)200,(byte)255,ba));
+            DrawRectangle(sw-10, 0, 10, sh, new Color((byte)0,(byte)200,(byte)255,ba));
+            string inv = $"INVINCIBLE  {_invincibleTimer:0.0}s";
+            DrawText(inv, sw/2 - MeasureText(inv, 16)/2, 14, 16,
+                new Color((byte)0,(byte)220,(byte)255,(byte)255));
+        }
     }
 
     void DrawGameOver()
@@ -712,6 +798,25 @@ public class Game
         DrawText(msg, sw/2 - MeasureText(msg, 60)/2, sh/2 - 50, 60, Color.Red);
         string sub = $"Survived {_dnc.NightCount} night(s)  |  Kills: {_killCount}  |  Press R to restart";
         DrawText(sub, sw/2 - MeasureText(sub, 24)/2, sh/2 + 30, 24, Color.White);
+    }
+
+    void DrawSpikeDecorations()
+    {
+        var vp = VoxelWorld.WorldToVoxel(_player.EyePos);
+        var spikeCol = new Color((byte)90,(byte)90,(byte)100,(byte)255);
+        for (int dx = -10; dx <= 10; dx++)
+        for (int dy = -2;  dy <= 6;  dy++)
+        for (int dz = -10; dz <= 10; dz++)
+        {
+            int cx = vp.X+dx, cy = vp.Y+dy, cz = vp.Z+dz;
+            if (_world.GetVoxel(cx, cy, cz) != 17) continue;
+            float bx = cx, by = cy + 1f, bz = cz;
+            DrawCube(new Vector3(bx+0.2f, by+0.2f, bz+0.2f), 0.07f, 0.42f, 0.07f, spikeCol);
+            DrawCube(new Vector3(bx+0.8f, by+0.2f, bz+0.2f), 0.07f, 0.42f, 0.07f, spikeCol);
+            DrawCube(new Vector3(bx+0.2f, by+0.2f, bz+0.8f), 0.07f, 0.42f, 0.07f, spikeCol);
+            DrawCube(new Vector3(bx+0.8f, by+0.2f, bz+0.8f), 0.07f, 0.42f, 0.07f, spikeCol);
+            DrawCube(new Vector3(bx+0.5f, by+0.2f, bz+0.5f), 0.07f, 0.42f, 0.07f, spikeCol);
+        }
     }
 
     void DrawTorchGlow()
