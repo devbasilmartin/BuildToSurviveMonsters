@@ -15,16 +15,19 @@ public class Zombie
     float _attackTimer;
     float _attackRate  = 1f;
     float _hitFlash    = 0f;  // 0..1, set to 1 on hit, decays
+    bool  _isRunner;
 
     readonly VoxelWorld _world;
 
     public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false)
     {
-        _world   = world;
-        Position = pos;
+        _world    = world;
+        Position  = pos;
+        _isRunner = isRunner;
         float scale = 1f + 0.1f * nightCount;
+        float speedScale = 1f + 0.07f * (nightCount - 1); // speed ramps each night
         HP = MaxHP = (int)((isRunner ? 30 : 60) * scale);
-        _speed   = (isRunner ? 3.5f : 1.5f);
+        _speed   = (isRunner ? 3.8f : 1.5f) * speedScale;
         _damage  = (isRunner ? 8 : 10) * scale;
     }
 
@@ -73,8 +76,13 @@ public class Zombie
     {
         if (IsDead) return;
         byte flash = (byte)(int)(_hitFlash * 200);
-        var bodyColor = new Color((byte)(180 + flash), (byte)(30 + flash), (byte)(30 + flash), (byte)255);
-        var headColor = new Color((byte)(200 + flash/2), (byte)(150 + flash), (byte)(100 + flash), (byte)255);
+        // Runners are olive-green; shamblers are dark red
+        var bodyColor = _isRunner
+            ? new Color((byte)Math.Min(255, 80  + flash), (byte)Math.Min(255, 120 + flash), (byte)Math.Min(255, 30  + flash), (byte)255)
+            : new Color((byte)Math.Min(255, 180 + flash), (byte)Math.Min(255, 30  + flash), (byte)Math.Min(255, 30  + flash), (byte)255);
+        var headColor = _isRunner
+            ? new Color((byte)Math.Min(255, 100 + flash), (byte)Math.Min(255, 140 + flash), (byte)Math.Min(255, 60  + flash), (byte)255)
+            : new Color((byte)Math.Min(255, 200 + flash/2), (byte)Math.Min(255, 150 + flash), (byte)Math.Min(255, 100 + flash), (byte)255);
         DrawCube(Position + new Vector3(0, 0.9f, 0),  0.6f,  1.5f, 0.6f,  bodyColor);
         DrawCube(Position + new Vector3(0, 1.85f, 0), 0.45f, 0.45f, 0.45f, headColor);
 

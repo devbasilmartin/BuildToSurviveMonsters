@@ -6,6 +6,32 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 4 — Iron Tier, Kill Counter, Zombie Scaling  *(2026-06-21)*
+
+**Iron tier**
+- **Iron Wall** (blockId 12): silver-grey, 40 HP, durable — in hotbar slot 3 from start; costs 3 iron per block placed
+- **Iron Sword** recipe (2 wood + 5 iron): 150 damage, 0.4s cooldown, longer blade viewmodel
+- **Iron Armor** recipe (6 iron): −55% damage taken (ArmorTier 3)
+- Full armor upgrade chain: Wood 15% → Stone 35% → Iron 55% (never downgrades)
+
+**Kill counter**
+- Kill count tracked across the entire run; shown top-right at all times
+- Active zombie count shown below it during night
+- Kill count displayed on the YOU DIED game-over screen alongside night count
+- Bug fix: `wasDead` check prevents double-counting kills if bullet/melee hit a corpse
+
+**Zombie scaling**
+- Speed now scales per night (+7% per night) in addition to HP — zombies get relentlessly faster
+- Runners (green) appear from **night 2** (was night 3) and make up 1/3 of the wave
+- Runners are olive-green; shamblers stay dark-red — easy to tell apart
+- Hit-flash still works on both types
+
+**UI polish**
+- Crafting panel rows tightened (64→52 px) so all 9 recipes fit in 720p without clipping
+- Iron Armor HUD label added with blue-silver colour
+
+---
+
 ## Sprint 3 — Survival Loop  *(2026-06-20)*
 
 **Hunger & Thirst**
@@ -79,9 +105,10 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ## Backlog
 
-- [ ] More loot crate variety (different drop tables: weapon crate, ammo crate, food crate)
-- [ ] Zombie XP / score counter
-- [ ] Multiple wave difficulty scaling
-- [ ] Player death animation / respawn
+- [ ] More loot crate variety (weapon crate, ammo crate, food crate with distinct colours)
+- [ ] Campfire block: craft from 3 wood + 1 stone; restores hunger/thirst when nearby
+- [ ] Night survival bonus: extra ammo or food rewarded for clearing all zombies
+- [ ] Player respawn at spawn with half HP (instead of hard game-over)
 - [ ] Sound effects (gunshot, melee swing, zombie groan)
 - [ ] Save/load world state
+- [ ] Minimap (top-down 2D overlay of explored area)

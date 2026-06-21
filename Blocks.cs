@@ -26,6 +26,7 @@ public static class Blocks
         new("CraftingTable", new Color( 60,  35,  10, 255), 999, false, 0, 0, 0),  // 9  indestructible fixture
         new("Crate",         new Color(220, 160,  30, 255), 999, false, 0, 0, 0),  // 10 loot crate, open with E
         new("Food",          new Color(200,  80,  50, 255),   0, false, 0, 0, 0),  // 11 inventory only
+        new("IronWall",      new Color(170, 175, 185, 255),  40, true,  8, 1, 2),  // 12 buildable, durable
     };
 
     public static BlockDef Get(byte id) => id < All.Length ? All[id] : All[0];

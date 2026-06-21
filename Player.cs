@@ -49,8 +49,9 @@ public class Player
         Inventory[3] = 10; // wood
         Ammo = 30;
         HotbarBlocks[0] = (255, 0); // slot 0 = gun
-        HotbarBlocks[1] = (5, 0);   // slot 1 = stone wall
-        HotbarBlocks[2] = (4, 0);   // slot 2 = plank wall
+        HotbarBlocks[1] = (5,   0); // slot 1 = stone wall
+        HotbarBlocks[2] = (4,   0); // slot 2 = plank wall
+        HotbarBlocks[3] = (12,  0); // slot 3 = iron wall
     }
 
     public Vector3 EyePos => Position + new Vector3(0, EyeHeight, 0);
@@ -229,11 +230,14 @@ public class Player
                         var def = Blocks.Get(slot.blockId);
                         if (def.IsBuildable)
                         {
-                            byte costId = slot.blockId == 4 ? (byte)3 : (byte)2;
+                            byte costId = slot.blockId == 4  ? (byte)3   // plank wall = wood
+                                        : slot.blockId == 12 ? (byte)8   // iron wall  = iron
+                                        : (byte)2;                        // stone wall = stone
+                            int  cost   = slot.blockId == 12 ? 3 : 2;
                             Inventory.TryGetValue(costId, out int have);
-                            if (have >= 2)
+                            if (have >= cost)
                             {
-                                Inventory[costId] = have - 2;
+                                Inventory[costId] = have - cost;
                                 _world.SetVoxel(pv.X, pv.Y, pv.Z, slot.blockId);
                             }
                         }
@@ -265,12 +269,14 @@ public class Player
     public float Hunger    = 100f;
     public float Thirst    = 100f;
 
-    public bool IsMeleeSelected => HotbarBlocks[SelectedSlot].blockId is 253 or 254;
+    public bool IsMeleeSelected => HotbarBlocks[SelectedSlot].blockId is 252 or 253 or 254;
     public bool IsWeaponSelected => IsGunSelected || IsMeleeSelected;
 
     public void TakeDamage(int amount)
     {
-        float reduction = ArmorTier == 2 ? 0.35f : ArmorTier == 1 ? 0.15f : 0f;
+        float reduction = ArmorTier == 3 ? 0.55f
+                        : ArmorTier == 2 ? 0.35f
+                        : ArmorTier == 1 ? 0.15f : 0f;
         amount = Math.Max(1, (int)(amount * (1f - reduction)));
         HP = Math.Max(0, HP - amount);
     }

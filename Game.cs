@@ -20,6 +20,7 @@ public class Game
     float _meleeSwing      = 0f;
     float _meleeCooldown   = 0f;
     float _starvationTimer = 0f;
+    int   _killCount       = 0;
     readonly Random _rng   = new();
 
     struct Bullet { public Vector3 Pos; public Vector3 Dir; public float Life; }
@@ -37,8 +38,10 @@ public class Game
         new("Stone Wall ×2",   5,  2, new[]{ new Ingredient(2,2) }),                        // 2 stone
         new("Wood Club",      253,  1, new[]{ new Ingredient(3,3) }),                        // 3 wood
         new("Stone Sword",    254,  1, new[]{ new Ingredient(3,1), new Ingredient(2,3) }),  // 1 wood + 3 stone
-        new("Wood Armor",      -2,  1, new[]{ new Ingredient(3,5) }),                        // 5 wood
+        new("Wood Armor",      -2,  1, new[]{ new Ingredient(3,5) }),                         // 5 wood
         new("Stone Armor",     -3,  1, new[]{ new Ingredient(2,4), new Ingredient(3,2) }),  // 4 stone + 2 wood
+        new("Iron Sword",     252,  1, new[]{ new Ingredient(3,2), new Ingredient(8,5) }),  // 2 wood + 5 iron
+        new("Iron Armor",      -4,  1, new[]{ new Ingredient(8,6) }),                        // 6 iron
     };
 
     public void Init()
@@ -168,8 +171,8 @@ public class Game
     void MeleeAttack()
     {
         byte wid  = _player.HotbarBlocks[_player.SelectedSlot].blockId;
-        int  dmg  = wid == 254 ? 80 : 35;   // stone sword : wood club
-        float cd  = wid == 254 ? 0.5f : 0.6f;
+        int  dmg  = wid == 252 ? 150 : wid == 254 ? 80 : 35;   // iron sword : stone sword : wood club
+        float cd  = wid == 252 ? 0.4f : wid == 254 ? 0.5f : 0.6f;
         _meleeCooldown = cd;
         _meleeSwing    = 1f;
 
@@ -185,8 +188,9 @@ public class Game
             toZ = new Vector3(toZ.X, 0, toZ.Z);
             if (toZ.LengthSquared() > 0 && Vector3.Dot(fwd2D, Vector3.Normalize(toZ)) > 0.3f)
             {
+                bool wasDead = z.IsDead;
                 z.TakeDamage(dmg);
-                if (z.IsDead) _player.Ammo += _rng.Next(1, 4);
+                if (z.IsDead && !wasDead) { _player.Ammo += _rng.Next(1, 4); _killCount++; }
             }
         }
     }
@@ -216,8 +220,9 @@ public class Game
                     bool hitHead = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 1.85f, 0)) < 0.3f;
                     if (hitBody || hitHead)
                     {
+                        bool wasDead = z.IsDead;
                         z.TakeDamage(GunDamage);
-                        if (z.IsDead) _player.Ammo += _rng.Next(1, 4);
+                        if (z.IsDead && !wasDead) { _player.Ammo += _rng.Next(1, 4); _killCount++; }
                         dead = true;
                         break;
                     }
@@ -285,6 +290,10 @@ public class Game
         else if (r.OutputId == -3)
         {
             _player.ArmorTier = Math.Max(_player.ArmorTier, 2);
+        }
+        else if (r.OutputId == -4)
+        {
+            _player.ArmorTier = Math.Max(_player.ArmorTier, 3);
         }
         else if (r.OutputId >= 250)
         {
@@ -372,6 +381,24 @@ public class Game
                 DrawCube(gunBase - up * 0.07f - fwd * 0.05f, 0.06f, 0.1f, 0.06f, new Color((byte)80,(byte)50,(byte)30,(byte)255));
                 if (_gunRecoil > 0.8f)
                     DrawCube(gunBase + fwd * 0.28f, 0.12f, 0.12f, 0.06f, new Color((byte)255,(byte)220,(byte)50,(byte)200));
+            }
+            else if (selId == 252) // Iron Sword
+            {
+                float swing = _meleeSwing * 0.45f;
+                Vector3 sBase = _player.EyePos
+                    + right * 0.20f - up * (0.14f - swing) + fwd * (0.38f + swing * 0.15f);
+                // Guard
+                DrawCube(sBase, 0.22f, 0.05f, 0.05f,
+                    new Color((byte)150,(byte)155,(byte)165,(byte)255));
+                // Handle
+                DrawCube(sBase - fwd * 0.13f, 0.04f, 0.04f, 0.18f,
+                    new Color((byte)80,(byte)50,(byte)20,(byte)255));
+                // Blade — longer and brighter than stone sword
+                DrawCube(sBase + fwd * 0.16f, 0.048f, 0.058f, 0.36f,
+                    new Color((byte)200,(byte)210,(byte)220,(byte)255));
+                // Blade tip
+                DrawCube(sBase + fwd * 0.36f + up * 0.01f, 0.025f, 0.03f, 0.08f,
+                    new Color((byte)220,(byte)230,(byte)240,(byte)255));
             }
             else if (selId == 253) // Wood Club
             {
@@ -463,10 +490,14 @@ public class Game
         // Armor
         if (_player.ArmorTier > 0)
         {
-            string armorLabel = _player.ArmorTier == 2 ? "ARMOR: Stone (-35%)" : "ARMOR: Wood (-15%)";
-            Color  armorCol   = _player.ArmorTier == 2
-                ? new Color((byte)160,(byte)160,(byte)180,(byte)255)
-                : new Color((byte)180,(byte)140,(byte)80,(byte)255);
+            string armorLabel = _player.ArmorTier == 3 ? "ARMOR: Iron (-55%)"
+                              : _player.ArmorTier == 2 ? "ARMOR: Stone (-35%)"
+                              : "ARMOR: Wood (-15%)";
+            Color armorCol = _player.ArmorTier == 3
+                ? new Color((byte)190,(byte)195,(byte)210,(byte)255)
+                : _player.ArmorTier == 2
+                    ? new Color((byte)160,(byte)160,(byte)180,(byte)255)
+                    : new Color((byte)180,(byte)140,(byte)80,(byte)255);
             DrawText(armorLabel, 330, sh - 28, 16, armorCol);
         }
 
@@ -483,9 +514,12 @@ public class Game
                          : Color.White;
         DrawText(phase, sw/2 - MeasureText(phase, 20)/2, 10, 20, phaseColor);
 
-        // Wave count
+        // Kill count always visible
+        DrawText($"Kills: {_killCount}", sw - 150, 10, 18, Color.Orange);
+
+        // Active zombie count during night
         if (_dnc.Phase == DayPhase.Night)
-            DrawText($"Zombies: {_waves.Active.Count}", sw - 160, 10, 18, Color.Orange);
+            DrawText($"Zombies: {_waves.Active.Count}", sw - 180, 32, 18, Color.Orange);
 
         // Inventory
         DrawText("Resources:", 10, 10, 16, Color.White);
@@ -513,6 +547,11 @@ public class Game
             {
                 DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)80,(byte)200,(byte)80,(byte)255));
                 DrawText("GUN", bx+6, hotbarY+14, 12, Color.White);
+            }
+            else if (slot.blockId == 252)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)190,(byte)195,(byte)205,(byte)255));
+                DrawText("ISWD", bx+2, hotbarY+14, 10, Color.White);
             }
             else if (slot.blockId == 253)
             {
@@ -554,14 +593,14 @@ public class Game
         DrawRectangle(0, 0, sw, sh, new Color((byte)0,(byte)0,(byte)0,(byte)150));
         string msg = "YOU DIED";
         DrawText(msg, sw/2 - MeasureText(msg, 60)/2, sh/2 - 50, 60, Color.Red);
-        string sub = $"Survived {_dnc.NightCount} night(s)    Press R to restart";
+        string sub = $"Survived {_dnc.NightCount} night(s)  |  Kills: {_killCount}  |  Press R to restart";
         DrawText(sub, sw/2 - MeasureText(sub, 24)/2, sh/2 + 30, 24, Color.White);
     }
 
     void DrawCraftingUI()
     {
         int sw = GetScreenWidth(), sh = GetScreenHeight();
-        int pw = 420, ph = 80 + Recipes.Length * 64;
+        int pw = 440, ph = 80 + Recipes.Length * 52;
         int px = sw/2 - pw/2, py = sh/2 - ph/2;
 
         DrawRectangle(px, py, pw, ph, new Color((byte)20,(byte)15,(byte)10,(byte)230));
@@ -573,7 +612,7 @@ public class Game
         for (int i = 0; i < Recipes.Length; i++)
         {
             var r   = Recipes[i];
-            int ry  = py + 48 + i * 64;
+            int ry  = py + 48 + i * 52;
             bool can = CanAfford(r);
 
             Color nameCol = can ? Color.White : Color.Gray;

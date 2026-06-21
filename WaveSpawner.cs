@@ -25,7 +25,7 @@ public class WaveSpawner
     {
         int night = _dnc.NightCount;
         int total = _baseCount + (night - 1) * 4;
-        int runners = night >= 3 ? total / 4 : 0;
+        int runners = night >= 2 ? total / 3 : 0;
         int shamblers = total - runners;
 
         for (int i = 0; i < shamblers; i++) SpawnOne(night, isRunner: false);
