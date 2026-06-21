@@ -6,6 +6,30 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 20 — Lightning, Berserker Ring, Health Gem, More Achievements  *(2026-06-21)*
+
+**Lightning strikes** (during rain, every 15-30s)
+- Targets nearest zombie within 12 units and deals 200 damage
+- If no zombie in range: visual-only strike at random position nearby
+- 3D DrawLine3D from y=28 to ground + expanding yellow sphere flash for 0.3s
+- AwardKill credited to player on lightning zombie kills
+
+**Rain thirst refill**
+- While raining (day only): Thirst slowly fills at +0.5/s — standing in rain is useful
+- Balances the slower movement penalty
+
+**New crafting recipes** (now 19 total)
+- **Health Gem** (5 iron + 2 stone, Lv.4): permanently +25 MaxHP + heal 25 HP
+- **Berserker's Ring** (3 iron + 3 wood, Lv.3): +50% melee damage (stackable to +150%, capped at 3x)
+- `Player.MeleeDamageMultiplier` used in MeleeAttack for all weapon types
+
+**3 new achievements** (now 13 total)
+- "Architect" — place 10 building blocks (tracked via Player.BlocksPlaced)
+- "Hoarder" — hold 50+ ammo simultaneously
+- "Untouchable" — survive the full 8-second respawn invincibility window
+
+---
+
 ## Sprint 19 — Rain Weather, Session Scoreboard, New Achievements  *(2026-06-21)*
 
 **Rain weather** (20% chance each day)
@@ -442,6 +466,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Lightning strike event: random bolt during storms kills 1 zombie
-- [ ] More achievements: "Collector" (all items), "Architect" (10 walls), "Untouchable" (invincible 30s)
-- [ ] Rain also refills water/thirst slowly while outside
+- [ ] Poison zombie: slow DOT attack, green visual
+- [ ] Melee attack combo counter: x2/x3 multiplier for successive hits
+- [ ] Special night events: Berserk Night (all zombies 2x speed), Blackout (no torch glow)

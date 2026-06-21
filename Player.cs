@@ -267,6 +267,7 @@ public class Player
                             {
                                 Inventory[costId] = have - cost;
                                 _world.SetVoxel(pv.X, pv.Y, pv.Z, slot.blockId);
+                                BlocksPlaced++;
                             }
                         }
                     }
@@ -301,7 +302,9 @@ public class Player
     public int   Level       = 0;
     public float SpeedBonus  = 0f;
     public float HealRate    = 0f;
-    public float SlowFactor  = 1f;   // 1 = normal; <1 = slowed (e.g. rain)
+    public float SlowFactor              = 1f;
+    public int   BlocksPlaced           = 0;
+    public float MeleeDamageMultiplier  = 1f;
     public int   Explosives  = 0;
     public float Stamina     = 100f;
     public bool  Sprinting   => _sprinting;

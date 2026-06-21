@@ -26,8 +26,12 @@ public class Game
     string  _achieveBannerMsg     = "";
     float   _turretFireInterval   = 2f;
 
-    bool    _rainDay           = false;
-    bool    _rainDaySurvived   = false;
+    bool    _rainDay               = false;
+    bool    _rainDaySurvived       = false;
+    float   _lightningTimer        = 20f;
+    float   _lightningFlashTimer   = 0f;
+    Vector3 _lightningPos;
+    bool    _invincibilityCompleted = false;
 
     struct Achievement { public string Name; public string Description; public bool Unlocked; }
     Achievement[] _achievements = null!;
@@ -104,7 +108,9 @@ public class Game
         new("Steel Sword",    248,  1, new[]{ new Ingredient(8,2), new Ingredient(2,3) },  RequiredLevel:5),
         new("Large Medpack",  -10,  1, new[]{ new Ingredient(11,5) }),                       // 5 food → +75 HP
         new("Iron Ration",    -11,  1, new[]{ new Ingredient(3,3), new Ingredient(8,1) }),  // 3 wood + 1 iron → bulk restore
-        new("Turret Upgrade", -12,  1, new[]{ new Ingredient(8,3), new Ingredient(2,3) },  RequiredLevel:3), // -0.5s fire rate
+        new("Turret Upgrade",   -12,  1, new[]{ new Ingredient(8,3), new Ingredient(2,3) },  RequiredLevel:3),
+        new("Health Gem",       -13,  1, new[]{ new Ingredient(8,5), new Ingredient(2,2) },  RequiredLevel:4), // 5 iron + 2 stone -> +25 MaxHP
+        new("Berserker Ring",   -14,  1, new[]{ new Ingredient(8,3), new Ingredient(3,3) },  RequiredLevel:3), // 3 iron + 3 wood -> +50% melee dmg
     };
 
     public void Init()
@@ -134,6 +140,9 @@ public class Game
             new() { Name="Decade Survivor",  Description="Survive 10 nights" },
             new() { Name="Fully Levelled",   Description="Reach Level 5" },
             new() { Name="Weathered",        Description="Survive a rainy day" },
+            new() { Name="Architect",        Description="Place 10 building blocks" },
+            new() { Name="Hoarder",          Description="Hold 50+ ammo at once" },
+            new() { Name="Untouchable",      Description="Survive a full respawn invincibility" },
         };
 
         // Day/night
@@ -170,8 +179,9 @@ public class Game
             }
             _nightCleared = false;
             _fogNight     = false;
-            _rainDay      = _rng.Next(5) == 0; // 20% rain chance
+            _rainDay      = _rng.Next(5) == 0;
             _player.SlowFactor = _rainDay ? 0.75f : 1f;
+            if (_rainDay) _lightningTimer = 15f + _rng.Next(16); // 15-30s to first strike
         };
 
         // Enemies
@@ -220,6 +230,13 @@ public class Game
             _player.Hunger = Math.Min(100f, _player.Hunger + 4f * dt);
             _player.Thirst = Math.Min(100f, _player.Thirst + 2.5f * dt);
         }
+
+        // Rain slowly refills thirst
+        if (_rainDay && _dnc.Phase != DayPhase.Night)
+            _player.Thirst = Math.Min(100f, _player.Thirst + 0.5f * dt);
+
+        // Lightning strikes during storms
+        UpdateLightning(dt);
 
         // Night clear bonus
         if (_nightStartDelay > 0) _nightStartDelay -= dt;
@@ -345,7 +362,11 @@ public class Game
         if (_invincibleTimer > 0)
         {
             _invincibleTimer -= dt;
-            if (_invincibleTimer <= 0) _player.Invincible = false;
+            if (_invincibleTimer <= 0)
+            {
+                _player.Invincible = false;
+                if (_player.HP > 0) _invincibilityCompleted = true; // achievement
+            }
         }
 
         // Boss warning timer
@@ -513,7 +534,8 @@ public class Game
     void MeleeAttack()
     {
         byte wid  = _player.HotbarBlocks[_player.SelectedSlot].blockId;
-        int  dmg  = wid == 248 ? 200 : wid == 252 ? 150 : wid == 254 ? 80 : 35;
+        int  dmg  = (int)((wid == 248 ? 200 : wid == 252 ? 150 : wid == 254 ? 80 : 35)
+                         * _player.MeleeDamageMultiplier);
         float cd  = wid == 248 ? 0.35f : wid == 252 ? 0.4f : wid == 254 ? 0.5f : 0.6f;
         _meleeCooldown = cd;
         _meleeSwing    = 1f;
@@ -582,8 +604,11 @@ public class Game
         UnlockAch(5, _bossKilled);
         UnlockAch(6, _meleeKillMade);
         UnlockAch(7, _dnc.NightCount >= 10 && isDay);
-        UnlockAch(8, _player.Level >= 5);
-        UnlockAch(9, _rainDaySurvived);
+        UnlockAch(8,  _player.Level >= 5);
+        UnlockAch(9,  _rainDaySurvived);
+        UnlockAch(10, _player.BlocksPlaced >= 10);
+        UnlockAch(11, _player.Ammo >= 50);
+        UnlockAch(12, _invincibilityCompleted);
     }
 
     void UnlockAch(int idx, bool condition)
@@ -788,6 +813,15 @@ public class Game
         {
             _turretFireInterval = Math.Max(0.5f, _turretFireInterval - 0.5f);
         }
+        else if (r.OutputId == -13)
+        {
+            _player.MaxHP += 25;
+            _player.HP = Math.Min(_player.HP + 25, _player.MaxHP);
+        }
+        else if (r.OutputId == -14)
+        {
+            _player.MeleeDamageMultiplier = Math.Min(3f, _player.MeleeDamageMultiplier + 0.5f);
+        }
         else if (r.OutputId >= 248)
         {
             // Weapon/tool — put in first empty hotbar slot
@@ -805,6 +839,41 @@ public class Game
             _player.Inventory.TryGetValue((byte)r.OutputId, out int cur);
             _player.Inventory[(byte)r.OutputId] = cur + r.OutputCount;
         }
+    }
+
+    void UpdateLightning(float dt)
+    {
+        if (!_rainDay || _dnc.Phase == DayPhase.Night) return;
+        if (_lightningFlashTimer > 0) _lightningFlashTimer -= dt;
+        _lightningTimer -= dt;
+        if (_lightningTimer > 0) return;
+        _lightningTimer = 15f + _rng.Next(16); // 15-30s until next
+
+        // Find nearest zombie within 12 units
+        Zombie? target = null;
+        float minD = 12f;
+        foreach (var z in _waves.Active)
+        {
+            if (z.IsDead) continue;
+            float d = Vector3.Distance(_player.Position, z.Position);
+            if (d < minD) { minD = d; target = z; }
+        }
+
+        if (target != null)
+        {
+            bool wasDead = target.IsDead;
+            target.TakeDamage(200);
+            if (target.IsDead && !wasDead) AwardKill(target);
+            _lightningPos = target.Position;
+        }
+        else
+        {
+            // Visual-only strike nearby
+            float a = (float)(_rng.NextDouble() * Math.PI * 2);
+            float d2 = (float)(_rng.NextDouble() * 8f);
+            _lightningPos = _player.Position + new Vector3(MathF.Cos(a) * d2, 0, MathF.Sin(a) * d2);
+        }
+        _lightningFlashTimer = 0.3f;
     }
 
     void RecordScore()
@@ -836,8 +905,11 @@ public class Game
         _itemsCrafted         = 0;
         _achieveBannerTimer   = 0f;
         _turretFireInterval   = 2f;
-        _rainDay              = false;
-        _rainDaySurvived      = false;
+        _rainDay                  = false;
+        _rainDaySurvived          = false;
+        _lightningTimer           = 20f;
+        _lightningFlashTimer      = 0f;
+        _invincibilityCompleted   = false;
         _timePlayed       = 0f;
         _levelUpTimer     = 0f;
         _waveBannerTimer  = 0f;
@@ -888,6 +960,18 @@ public class Game
                 DrawCube(new Vector3(v.X + 0.5f, v.Y + 0.5f, v.Z + 0.5f), 1f, 1f, 1f,
                     new Color(c.R, c.G, c.B, (byte)100));
             }
+        }
+
+        // Lightning bolt
+        if (_lightningFlashTimer > 0)
+        {
+            float intensity = _lightningFlashTimer / 0.3f;
+            byte la = (byte)(int)(intensity * 255);
+            DrawLine3D(new Vector3(_lightningPos.X, 28f, _lightningPos.Z),
+                       _lightningPos + new Vector3(0, 0.5f, 0),
+                       new Color((byte)255,(byte)255,(byte)100,la));
+            DrawSphere(_lightningPos + new Vector3(0, 0.5f, 0), 0.6f,
+                new Color((byte)255,(byte)240,(byte)50,(byte)(int)(intensity * 200)));
         }
 
         // Bullets
