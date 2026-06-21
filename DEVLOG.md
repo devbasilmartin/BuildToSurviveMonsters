@@ -6,6 +6,25 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 27 — Control Remap & Left-Click Mode Indicator  *(2026-06-21)*
+
+**Throw explosive: G → Q**
+- Q is the universal "throw/grenade" key in shooters; G was non-standard
+- No conflict with pause-menu Quit (also Q): they live in mutually exclusive states
+  (throw only fires during active play; Quit only in the `_pauseOpen` menu)
+- Updated bottom HUD hint, help screen, and pause text accordingly
+
+**Left-Click mode indicator**
+- Small label under the crosshair shows what Left-Click does with the held item:
+  **FIRE** (gun — green, turns red at 0 ammo), **MELEE** (weapon — amber), **MINE** (tools/blocks — blue)
+- Removes the ambiguity of Left-Click's triple purpose without changing the binding
+
+**Design note:** kept the already-conventional bindings (WASD, Space, Shift, Mouse,
+1-9/Wheel, E-interact, F-eat) untouched — remapping those would fight muscle memory.
+Only the off-convention action key (throw) moved.
+
+---
+
 ## Sprint 26 — Startup Help Screen & Control Cleanup  *(2026-06-21)*
 
 **How-to-play / controls screen**

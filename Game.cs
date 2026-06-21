@@ -401,8 +401,8 @@ public class Game
             }
         }
 
-        // G = throw explosive
-        if (IsKeyPressed(KeyboardKey.G)) ThrowExplosive();
+        // Q = throw explosive
+        if (IsKeyPressed(KeyboardKey.Q)) ThrowExplosive();
         if (_explosionTimer > 0) _explosionTimer -= dt;
 
         // Left-click shoots / swings depending on weapon
@@ -1305,6 +1305,19 @@ public class Game
         DrawLine(sw/2 - 10, sh/2, sw/2 + 10, sh/2, Color.White);
         DrawLine(sw/2, sh/2 - 10, sw/2, sh/2 + 10, Color.White);
 
+        // Left-click mode indicator — what the held item does on Left-Click
+        {
+            string mode = _player.IsGunSelected   ? "FIRE"
+                        : _player.IsMeleeSelected  ? "MELEE"
+                        : "MINE";
+            Color modeCol = _player.IsGunSelected
+                ? (_player.Ammo > 0 ? new Color((byte)120,(byte)220,(byte)120,(byte)200)
+                                    : new Color((byte)225,(byte)90,(byte)90,(byte)220))
+                : _player.IsMeleeSelected ? new Color((byte)235,(byte)200,(byte)110,(byte)200)
+                                          : new Color((byte)150,(byte)200,(byte)235,(byte)200);
+            DrawText(mode, sw/2 - MeasureText(mode, 12)/2, sh/2 + 16, 12, modeCol);
+        }
+
         // Stamina bar
         {
             bool depleted = _player.Stamina <= 0;
@@ -1544,7 +1557,7 @@ public class Game
                     : nc  ? "E: Open Crafting Table"
                     : ncf ? "CAMPFIRE: Hunger + Thirst restoring"
                     : _player.Explosives > 0
-            ? "G: Throw Explosive  WASD move  LClick shoot/swing  RClick build  F eat  H help"
+            ? "Q: Throw Explosive  WASD move  LClick shoot/swing  RClick build  F eat  H help"
             : "WASD move  LClick shoot/mine/swing  RClick build  F eat  Space jump  H help";
         Color hintCol = (ncr || nc) ? Color.Yellow
                       : ncf         ? new Color((byte)255,(byte)150,(byte)50,(byte)255)
@@ -1824,7 +1837,7 @@ public class Game
             ("Left Click",    "Shoot / Mine / Swing"),
             ("Right Click",   "Place block from hotbar"),
             ("1-9 / Wheel",   "Select hotbar slot"),
-            ("G",             "Throw explosive"),
+            ("Q",             "Throw explosive"),
             ("",              ""),
             ("F",             "Eat food"),
             ("E",             "Interact (crate / table)"),
@@ -1832,7 +1845,7 @@ public class Game
             ("H",             "Toggle this help"),
             ("Esc",           "Pause / close menu"),
             ("P",             "Prestige (at max level)"),
-            ("R / Q",         "Restart / Quit (when paused)"),
+            ("R",             "Restart (when paused / dead)"),
         };
         for (int i = 0; i < controls.Length; i++)
         {
