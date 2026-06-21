@@ -6,6 +6,28 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 14 — Sprint/Stamina, Double-Wave Night, Steel Sword  *(2026-06-21)*
+
+**Sprint / Stamina**
+- Hold Shift while moving to sprint at 1.8× base speed
+- Stamina bar: 100 pts, drains 30/s while sprinting, regens 15/s when not
+- Empty stamina locks sprinting until it recharges past 30 (prevents flicker)
+- Sprinting 1.5× hunger/thirst drain on top of existing night multiplier
+- Cyan stamina bar above XP bar; "SPRINT" label pulses bright while active
+
+**Double-wave night** (20% chance, independent from fog)
+- WaveSpawner.ForceExtraSpawn() called second time in OnNightStart (after normal spawn)
+- Doubles total zombie count for that night
+- "[DOUBLE WAVE!]" appended to wave preview banner; can combine with "[FOG]" for brutal nights
+
+**Steel Sword** (blockId 248, recipe: 2 iron + 3 stone, Level 5 required)
+- 200 melee damage, 0.35s cooldown — fastest and hardest hitting melee weapon
+- Gold crossguard + dark grip + long bright-silver blade viewmodel
+- 2× damage vs armoured zombies (like all melee) = 400 effective damage
+- Appears as SSTD in hotbar; placed in first available slot on craft
+
+---
+
 ## Sprint 13 — Armoured Zombie, Voxel Destruction, Fog Night  *(2026-06-21)*
 
 **Armoured Zombie** (spawns night 3+, ~20% of shamblers)
@@ -311,6 +333,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Double-wave night event (random ~20% chance, separate from fog)
-- [ ] Zombie crawler: low-profile zombie that's hard to shoot (small hitbox)
-- [ ] Player stamina: sprint with Shift, drains quickly, affects melee range
+- [ ] Zombie crawler: low-profile zombie with tiny body hitbox
+- [ ] Turret block: place and auto-shoots nearby zombies slowly
+- [ ] Day summary screen: brief pause at day start showing last night's stats

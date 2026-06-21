@@ -106,8 +106,25 @@ public class Player
         if (IsKeyDown(KeyboardKey.D) || IsKeyDown(KeyboardKey.Right)) move -= right;
         if (move.LengthSquared() > 0) move = Vector3.Normalize(move);
 
+        // Sprint
+        bool wantSprint = IsKeyDown(KeyboardKey.LeftShift) && move.LengthSquared() > 0;
+        if (_staminaEmpty && Stamina >= 30f) _staminaEmpty = false;
+        if (_staminaEmpty) wantSprint = false;
+        if (wantSprint && Stamina > 0)
+        {
+            _sprinting = true;
+            Stamina = Math.Max(0f, Stamina - StaminaDrain * dt);
+            if (Stamina <= 0f) _staminaEmpty = true;
+        }
+        else
+        {
+            _sprinting = false;
+            Stamina = Math.Min(StaminaMax, Stamina + StaminaRegen * dt);
+        }
+
         // Horizontal
-        Vector3 hDelta = move * (MoveSpeed + SpeedBonus) * dt;
+        float effectiveSpeed = (MoveSpeed + SpeedBonus) * (_sprinting ? 1.8f : 1f);
+        Vector3 hDelta = move * effectiveSpeed * dt;
         MoveAndCollide(ref hDelta, dt, horizontal: true);
         Position.X += hDelta.X;
         Position.Z += hDelta.Z;
@@ -279,11 +296,20 @@ public class Player
     public bool  Invincible  = false;
     public int   XP          = 0;
     public int   Level       = 0;
-    public float SpeedBonus  = 0f;  // added by level-ups at even levels
-    public float HealRate    = 0f;  // HP/s passive regen (from Healing Amulet)
+    public float SpeedBonus  = 0f;
+    public float HealRate    = 0f;
     public int   Explosives  = 0;
+    public float Stamina     = 100f;
+    public bool  Sprinting   => _sprinting;
 
-    public bool IsMeleeSelected  => HotbarBlocks[SelectedSlot].blockId is 252 or 253 or 254;
+    bool _sprinting     = false;
+    bool _staminaEmpty  = false;
+
+    const float StaminaMax   = 100f;
+    const float StaminaDrain = 30f;
+    const float StaminaRegen = 15f;
+
+    public bool IsMeleeSelected  => HotbarBlocks[SelectedSlot].blockId is 248 or 252 or 253 or 254;
     public bool IsWeaponSelected => IsGunSelected || IsMeleeSelected;
 
     // Mining speed: pickaxes deal more hp damage per tick

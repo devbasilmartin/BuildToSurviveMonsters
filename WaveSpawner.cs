@@ -70,6 +70,8 @@ public class WaveSpawner
 
     void DespawnAll() => Active.Clear();
 
+    public void ForceExtraSpawn() => SpawnWave();
+
     public (int shamblers, int runners, int armoured, bool hasBoss) GetWavePreview(int night)
     {
         int total     = _baseCount + (night - 1) * 4;

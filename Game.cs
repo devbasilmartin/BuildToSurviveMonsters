@@ -77,6 +77,7 @@ public class Game
         new("Iron Pickaxe",   250,  1, new[]{ new Ingredient(8,3), new Ingredient(3,2) },  RequiredLevel:2),
         new("Healing Amulet",  -8,  1, new[]{ new Ingredient(8,3), new Ingredient(2,2) },  RequiredLevel:3),
         new("Explosive",       -9,  1, new[]{ new Ingredient(8,2), new Ingredient(3,3) },  RequiredLevel:4),
+        new("Steel Sword",    248,  1, new[]{ new Ingredient(8,2), new Ingredient(2,3) },  RequiredLevel:5),
     };
 
     public void Init()
@@ -106,7 +107,12 @@ public class Game
             if (r > 0) _waveBannerMsg += $"  +  {r} runners";
             if (a > 0) _waveBannerMsg += $"  +  {a} armoured";
             if (b)     _waveBannerMsg += "  +  BOSS!";
-            if (_fogNight) _waveBannerMsg += "   [FOG NIGHT]";
+            if (_fogNight) _waveBannerMsg += "   [FOG]";
+            if (_rng.Next(5) == 0) // 20% double wave
+            {
+                _waves.ForceExtraSpawn();
+                _waveBannerMsg += "   [DOUBLE WAVE!]";
+            }
             _waveBannerTimer = 4f;
         };
         _dnc.OnDayStart += () => { _nightCleared = false; _fogNight = false; };
@@ -138,8 +144,9 @@ public class Game
 
         _waves.Update(dt, _player);
 
-        // Hunger / Thirst drain — faster at night
+        // Hunger / Thirst drain — faster at night, faster while sprinting
         float drainMult = _dnc.Phase == DayPhase.Night ? 1.5f : 1f;
+        if (_player.Sprinting) drainMult *= 1.5f;
         _player.Hunger = Math.Max(0f, _player.Hunger - 0.22f * drainMult * dt);
         _player.Thirst = Math.Max(0f, _player.Thirst - 0.38f * drainMult * dt);
 
@@ -364,8 +371,8 @@ public class Game
     void MeleeAttack()
     {
         byte wid  = _player.HotbarBlocks[_player.SelectedSlot].blockId;
-        int  dmg  = wid == 252 ? 150 : wid == 254 ? 80 : 35;   // iron sword : stone sword : wood club
-        float cd  = wid == 252 ? 0.4f : wid == 254 ? 0.5f : 0.6f;
+        int  dmg  = wid == 248 ? 200 : wid == 252 ? 150 : wid == 254 ? 80 : 35;
+        float cd  = wid == 248 ? 0.35f : wid == 252 ? 0.4f : wid == 254 ? 0.5f : 0.6f;
         _meleeCooldown = cd;
         _meleeSwing    = 1f;
 
@@ -572,7 +579,7 @@ public class Game
         {
             _player.Explosives++;
         }
-        else if (r.OutputId >= 249)
+        else if (r.OutputId >= 248)
         {
             // Weapon/tool — put in first empty hotbar slot
             for (int s = 0; s < _player.HotbarBlocks.Length; s++)
@@ -740,6 +747,24 @@ public class Game
                 DrawCube(swordBase + fwd * 0.3f + up * 0.01f, 0.025f, 0.03f, 0.1f,
                     new Color((byte)110,(byte)110,(byte)115,(byte)255));
             }
+            else if (selId == 248) // Steel Sword — long polished silver blade
+            {
+                float swing = _meleeSwing * 0.45f;
+                Vector3 ssBase = _player.EyePos
+                    + right * 0.20f - up * (0.14f - swing) + fwd * (0.38f + swing * 0.15f);
+                // Guard — wide, gold-tinted
+                DrawCube(ssBase, 0.26f, 0.055f, 0.055f,
+                    new Color((byte)200,(byte)180,(byte)60,(byte)255));
+                // Handle — wrapped grip
+                DrawCube(ssBase - fwd * 0.14f, 0.04f, 0.04f, 0.2f,
+                    new Color((byte)60,(byte)40,(byte)20,(byte)255));
+                // Blade — longer and brighter than iron
+                DrawCube(ssBase + fwd * 0.19f, 0.05f, 0.06f, 0.42f,
+                    new Color((byte)220,(byte)235,(byte)245,(byte)255));
+                // Tip
+                DrawCube(ssBase + fwd * 0.42f + up * 0.01f, 0.02f, 0.03f, 0.1f,
+                    new Color((byte)240,(byte)248,(byte)255,(byte)255));
+            }
             else if (selId == 249) // Stone Hatchet — wide stone blade, short handle
             {
                 Vector3 hBase = _player.EyePos + right * 0.24f - up * 0.20f + fwd * 0.40f;
@@ -792,6 +817,17 @@ public class Game
         // Crosshair
         DrawLine(sw/2 - 10, sh/2, sw/2 + 10, sh/2, Color.White);
         DrawLine(sw/2, sh/2 - 10, sw/2, sh/2 + 10, Color.White);
+
+        // Stamina bar
+        {
+            bool depleted = _player.Stamina <= 0;
+            Color stCol = depleted ? Color.DarkGray
+                        : _player.Sprinting ? new Color((byte)0,(byte)220,(byte)255,(byte)255)
+                        : new Color((byte)0,(byte)160,(byte)200,(byte)255);
+            DrawRectangle(10, sh - 110, 160, 8, Color.DarkGray);
+            DrawRectangle(10, sh - 110, (int)(160f * _player.Stamina / 100f), 8, stCol);
+            DrawText(_player.Sprinting ? "SPRINT" : "STAM", 176, sh - 112, 11, stCol);
+        }
 
         // XP bar
         {
@@ -912,6 +948,11 @@ public class Game
             {
                 DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)80,(byte)200,(byte)80,(byte)255));
                 DrawText("GUN", bx+6, hotbarY+14, 12, Color.White);
+            }
+            else if (slot.blockId == 248)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)180,(byte)200,(byte)220,(byte)255));
+                DrawText("SSTD", bx+2, hotbarY+14, 10, Color.White);
             }
             else if (slot.blockId == 249)
             {
