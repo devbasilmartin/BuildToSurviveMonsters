@@ -26,8 +26,14 @@ public class Game
     string  _achieveBannerMsg     = "";
     float   _turretFireInterval   = 2f;
 
+    bool    _rainDay           = false;
+    bool    _rainDaySurvived   = false;
+
     struct Achievement { public string Name; public string Description; public bool Unlocked; }
     Achievement[] _achievements = null!;
+
+    struct RunScore { public int Nights, Kills; public float PlayTime; }
+    readonly System.Collections.Generic.List<RunScore> _topScores = new();
     float   _timePlayed        = 0f;
     public  bool ShouldQuit    = false;
     float   _gunRecoil         = 0f;
@@ -126,6 +132,8 @@ public class Game
             new() { Name="Boss Hunter",      Description="Kill a boss zombie" },
             new() { Name="Melee Master",     Description="Kill a zombie with melee" },
             new() { Name="Decade Survivor",  Description="Survive 10 nights" },
+            new() { Name="Fully Levelled",   Description="Reach Level 5" },
+            new() { Name="Weathered",        Description="Survive a rainy day" },
         };
 
         // Day/night
@@ -136,6 +144,9 @@ public class Game
             _fogNight        = _rng.Next(10) < 3; // 30% fog chance
             _nightKills      = 0;
             _xpBeforeNight   = _player.XP;
+            if (_rainDay) _rainDaySurvived = true; // achievement: survived a rainy day
+            _rainDay         = false; // rain clears at night
+            _player.SlowFactor = 1f;
             if (_dnc.NightCount >= 5) _bossWarningTimer = 5f;
             var (s, r, a, c, b) = _waves.GetWavePreview(_dnc.NightCount);
             _waveBannerMsg = $"Night {_dnc.NightCount}:  {s} zombies";
@@ -159,6 +170,8 @@ public class Game
             }
             _nightCleared = false;
             _fogNight     = false;
+            _rainDay      = _rng.Next(5) == 0; // 20% rain chance
+            _player.SlowFactor = _rainDay ? 0.75f : 1f;
         };
 
         // Enemies
@@ -201,8 +214,8 @@ public class Game
         }
         else _starvationTimer = 0f;
 
-        // Campfire: restore hunger + thirst when nearby
-        if (NearCampfire())
+        // Campfire: restore hunger + thirst when nearby (rain suppresses it)
+        if (!_rainDay && NearCampfire())
         {
             _player.Hunger = Math.Min(100f, _player.Hunger + 4f * dt);
             _player.Thirst = Math.Min(100f, _player.Thirst + 2.5f * dt);
@@ -569,6 +582,8 @@ public class Game
         UnlockAch(5, _bossKilled);
         UnlockAch(6, _meleeKillMade);
         UnlockAch(7, _dnc.NightCount >= 10 && isDay);
+        UnlockAch(8, _player.Level >= 5);
+        UnlockAch(9, _rainDaySurvived);
     }
 
     void UnlockAch(int idx, bool condition)
@@ -792,8 +807,17 @@ public class Game
         }
     }
 
+    void RecordScore()
+    {
+        if (_dnc == null || _killCount == 0) return;
+        _topScores.Add(new RunScore { Nights = _dnc.NightCount, Kills = _killCount, PlayTime = _timePlayed });
+        _topScores.Sort((a, b) => (b.Nights * 1000 + b.Kills) - (a.Nights * 1000 + a.Kills));
+        if (_topScores.Count > 3) _topScores.RemoveAt(3);
+    }
+
     void Restart()
     {
+        RecordScore();
         _craftingOpen     = false;
         _killCount        = 0;
         _deathCount       = 0;
@@ -812,6 +836,8 @@ public class Game
         _itemsCrafted         = 0;
         _achieveBannerTimer   = 0f;
         _turretFireInterval   = 2f;
+        _rainDay              = false;
+        _rainDaySurvived      = false;
         _timePlayed       = 0f;
         _levelUpTimer     = 0f;
         _waveBannerTimer  = 0f;
@@ -833,7 +859,9 @@ public class Game
             ? new Color((byte)10,  (byte)10,  (byte)30,  (byte)255)
             : _dnc.Phase == DayPhase.Warning
                 ? new Color((byte)200, (byte)100, (byte)30,  (byte)255)
-                : new Color((byte)80,  (byte)160, (byte)240, (byte)255);
+                : _rainDay
+                    ? new Color((byte)50,  (byte)60,  (byte)75,  (byte)255)  // stormy grey
+                    : new Color((byte)80,  (byte)160, (byte)240, (byte)255);
 
         BeginDrawing();
         ClearBackground(sky);
@@ -1011,6 +1039,7 @@ public class Game
 
         EndMode3D();
 
+        if (_rainDay && _dnc.Phase != DayPhase.Night) DrawRain();
         DrawHUD();
 
         if (_craftingOpen)            DrawCraftingUI();
@@ -1115,10 +1144,17 @@ public class Game
                          : Color.White;
         DrawText(phase, sw/2 - MeasureText(phase, 20)/2, 10, 20, phaseColor);
 
-        // Fog night indicator
+        // Weather indicators
+        int weatherY = sh/2 - 30;
         if (_fogNight)
-            DrawText("FOG", sw - MM_SIZE - 10, sh/2 - MeasureText("FOG", 20)/2, 20,
+        {
+            DrawText("FOG", sw - MM_SIZE - 10, weatherY, 20,
                 new Color((byte)180,(byte)180,(byte)220,(byte)200));
+            weatherY -= 28;
+        }
+        if (_rainDay && _dnc.Phase != DayPhase.Night)
+            DrawText("RAIN", sw - MM_SIZE - 10, weatherY, 20,
+                new Color((byte)100,(byte)145,(byte)215,(byte)200));
 
         // Kill count + death count (left of minimap)
         DrawText($"Kills: {_killCount}", sw - MM_SIZE - 100, 10, 18, Color.Orange);
@@ -1392,6 +1428,23 @@ public class Game
         DrawText("R — Restart",   sw/2 - MeasureText("R — Restart",18)/2,   sh/2 + 120, 18, Color.White);
         DrawText("Q — Quit Game", sw/2 - MeasureText("Q — Quit Game",18)/2, sh/2 + 144, 18,
             new Color((byte)210,(byte)70,(byte)70,(byte)255));
+
+        // Session scoreboard
+        if (_topScores.Count > 0)
+        {
+            DrawLine(sw/2 - 200, sh/2 + 172, sw/2 + 200, sh/2 + 172,
+                new Color((byte)60,(byte)60,(byte)80,(byte)255));
+            DrawText("BEST RUNS THIS SESSION",
+                sw/2 - MeasureText("BEST RUNS THIS SESSION",14)/2, sh/2 + 178, 14,
+                new Color((byte)200,(byte)160,(byte)50,(byte)255));
+            for (int i = 0; i < _topScores.Count; i++)
+            {
+                var s = _topScores[i];
+                int sm = (int)s.PlayTime / 60, ss = (int)s.PlayTime % 60;
+                string line = $"#{i+1}  Night {s.Nights}  |  {s.Kills} kills  |  {sm}:{ss:D2}";
+                DrawText(line, sw/2 - MeasureText(line,13)/2, sh/2 + 196 + i * 18, 13, Color.LightGray);
+            }
+        }
     }
 
     void DrawGameOver()
@@ -1452,6 +1505,19 @@ public class Game
             float bob = MathF.Sin(t * 3f + cx * 0.9f + cz * 1.1f) * 0.03f;
             DrawSphere(new Vector3(cx+0.5f, cy+1.1f+bob, cz+0.5f), 0.18f,
                 new Color((byte)255,(byte)210,(byte)60,(byte)200));
+        }
+    }
+
+    void DrawRain()
+    {
+        int sw = GetScreenWidth(), sh = GetScreenHeight();
+        float t = (float)GetTime();
+        for (int i = 0; i < 180; i++)
+        {
+            int rx = (int)((i * 173f + t * 260f) % sw);
+            int ry = (int)((i * 97f  + t * 520f) % sh);
+            DrawLine(rx, ry, rx + 1, ry + 8,
+                new Color((byte)100,(byte)145,(byte)215,(byte)110));
         }
     }
 

@@ -6,6 +6,30 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 19 — Rain Weather, Session Scoreboard, New Achievements  *(2026-06-21)*
+
+**Rain weather** (20% chance each day)
+- Dark stormy grey sky replaces blue on rainy days
+- 180 animated rain-drop lines (semi-transparent blue) scrolling down as 2D overlay
+- Campfire healing suppressed while raining (campfire extinguished)
+- Player movement 25% slower in rain via `Player.SlowFactor = 0.75f`
+- "RAIN" indicator shown on screen (stacks below "FOG" if both active)
+- Rain clears automatically at night start
+
+**Session scoreboard** (top-3 runs per session)
+- `RecordScore()` called at each restart, saves nights/kills/playtime
+- Sorted by nights × 1000 + kills (nights first, kills as tiebreak)
+- Shown in pause screen under controls: "#1 Night N | X kills | M:SS"
+- Survives across restarts, resets only when app closes
+
+**2 new achievements** (now 10 total)
+- "Fully Levelled" — reach Level 5
+- "Weathered" — survive a rainy day (day end while it was raining)
+
+**Player.SlowFactor** field — generalised speed modifier usable by future effects (rain, status effects)
+
+---
+
 ## Sprint 18 — Achievements, Turret Upgrade, Bug Fixes  *(2026-06-21)*
 
 **Achievement system** (8 achievements)
@@ -416,8 +440,8 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 ## Backlog
 
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
-- [ ] Save/load world state  
+- [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Rain weather: occasional rain event, slows player, extinguishes campfires
-- [ ] More achievements: "Fully Levelled", "All Weapons", "10 Turrets Placed"
-- [ ] Scoreboard: top-3 run scores tracked in memory per session
+- [ ] Lightning strike event: random bolt during storms kills 1 zombie
+- [ ] More achievements: "Collector" (all items), "Architect" (10 walls), "Untouchable" (invincible 30s)
+- [ ] Rain also refills water/thirst slowly while outside

@@ -124,7 +124,7 @@ public class Player
         }
 
         // Horizontal
-        float effectiveSpeed = (MoveSpeed + SpeedBonus) * (_sprinting ? 1.8f : 1f);
+        float effectiveSpeed = (MoveSpeed + SpeedBonus) * (_sprinting ? 1.8f : 1f) * SlowFactor;
         Vector3 hDelta = move * effectiveSpeed * dt;
         MoveAndCollide(ref hDelta, dt, horizontal: true);
         Position.X += hDelta.X;
@@ -301,6 +301,7 @@ public class Player
     public int   Level       = 0;
     public float SpeedBonus  = 0f;
     public float HealRate    = 0f;
+    public float SlowFactor  = 1f;   // 1 = normal; <1 = slowed (e.g. rain)
     public int   Explosives  = 0;
     public float Stamina     = 100f;
     public bool  Sprinting   => _sprinting;
