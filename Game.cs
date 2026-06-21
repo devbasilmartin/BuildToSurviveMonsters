@@ -125,6 +125,7 @@ public class Game
         new("Berserker Ring",   -14,  1, new[]{ new Ingredient(8,3), new Ingredient(3,3) },  RequiredLevel:3),
         new("Antidote",         -15,  1, new[]{ new Ingredient(11,2), new Ingredient(8,1) }),                   // 2 food + 1 iron → cure poison
         new("Bone Broth",       -16,  1, new[]{ new Ingredient(11,4) }),                                        // 4 food → bulk hunger+thirst+HP
+        new("Shadow Blade",     247,  1, new[]{ new Ingredient(8,4), new Ingredient(2,2) }, RequiredLevel:6),  // 4 iron + 2 stone → ultimate melee
     };
 
     public void Init()
@@ -512,7 +513,7 @@ public class Game
             float minDist = 8f;
             foreach (var z in _waves.Active)
             {
-                if (z.IsDead) continue;
+                if (z.IsDead || z.IsGhost) continue; // turrets can't target ghosts
                 float d = Vector3.Distance(tPos, z.Position + new Vector3(0, 1f, 0));
                 if (d < minDist) { minDist = d; target = z; }
             }
@@ -575,7 +576,7 @@ public class Game
     {
         foreach (var z in _waves.Active)
         {
-            if (z.IsDead) continue;
+            if (z.IsDead || z.IsGhost) continue; // ghosts phase over spikes too
             var vox = VoxelWorld.WorldToVoxel(z.Position);
             if (_world.GetVoxel(vox.X, vox.Y, vox.Z) == 17)
             {
@@ -601,10 +602,10 @@ public class Game
     void MeleeAttack()
     {
         byte wid  = _player.HotbarBlocks[_player.SelectedSlot].blockId;
-        int  dmg  = (int)((wid == 248 ? 200 : wid == 252 ? 150 : wid == 254 ? 80 : 35)
+        int  dmg  = (int)((wid == 247 ? 270 : wid == 248 ? 200 : wid == 252 ? 150 : wid == 254 ? 80 : 35)
                          * _player.MeleeDamageMultiplier)
                   + _prestigeLevel * 10;
-        float cd  = wid == 248 ? 0.35f : wid == 252 ? 0.4f : wid == 254 ? 0.5f : 0.6f;
+        float cd  = wid == 247 ? 0.3f : wid == 248 ? 0.35f : wid == 252 ? 0.4f : wid == 254 ? 0.5f : 0.6f;
         _meleeCooldown = cd;
         _meleeSwing    = 1f;
 
@@ -748,6 +749,7 @@ public class Game
                 foreach (var z in _waves.Active)
                 {
                     if (z.IsDead) continue;
+                    if (z.IsGhost) continue; // ghosts are immune to bullets
                     bool hitBody, hitHead;
                     if (z.IsGigant)
                     {
@@ -924,7 +926,7 @@ public class Game
             _player.Thirst = Math.Min(100f, _player.Thirst + 40f);
             _player.HP     = Math.Min(_player.MaxHP, _player.HP + 10);
         }
-        else if (r.OutputId >= 248)
+        else if (r.OutputId >= 247)
         {
             // Weapon/tool — put in first empty hotbar slot
             for (int s = 0; s < _player.HotbarBlocks.Length; s++)
@@ -1193,6 +1195,20 @@ public class Game
                 DrawCube(swordBase + fwd * 0.3f + up * 0.01f, 0.025f, 0.03f, 0.1f,
                     new Color((byte)110,(byte)110,(byte)115,(byte)255));
             }
+            else if (selId == 247) // Shadow Blade — dark near-black blade
+            {
+                float swing = _meleeSwing * 0.5f;
+                Vector3 sbBase = _player.EyePos
+                    + right * 0.20f - up * (0.14f - swing) + fwd * (0.38f + swing * 0.15f);
+                DrawCube(sbBase, 0.28f, 0.055f, 0.055f,
+                    new Color((byte)40,(byte)40,(byte)80,(byte)255));  // dark guard
+                DrawCube(sbBase - fwd * 0.16f, 0.04f, 0.04f, 0.22f,
+                    new Color((byte)30,(byte)20,(byte)20,(byte)255));  // dark grip
+                DrawCube(sbBase + fwd * 0.22f, 0.045f, 0.06f, 0.46f,
+                    new Color((byte)20,(byte)20,(byte)40,(byte)255));  // near-black blade
+                DrawCube(sbBase + fwd * 0.47f + up * 0.01f, 0.02f, 0.03f, 0.1f,
+                    new Color((byte)100,(byte)120,(byte)200,(byte)255)); // blue tip
+            }
             else if (selId == 248) // Steel Sword — long polished silver blade
             {
                 float swing = _meleeSwing * 0.45f;
@@ -1425,6 +1441,11 @@ public class Game
             {
                 DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)80,(byte)200,(byte)80,(byte)255));
                 DrawText("GUN", bx+6, hotbarY+14, 12, Color.White);
+            }
+            else if (slot.blockId == 247)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)20,(byte)20,(byte)40,(byte)255));
+                DrawText("SHDW", bx+2, hotbarY+14, 10, new Color((byte)130,(byte)150,(byte)220,(byte)255));
             }
             else if (slot.blockId == 248)
             {
@@ -1664,7 +1685,8 @@ public class Game
         string title = "PAUSED";
         DrawText(title, sw/2 - MeasureText(title,40)/2, sh/2 - 130, 40, Color.White);
 
-        string stats = $"Night {_dnc.NightCount}   Kills: {_killCount}   Deaths: {_deathCount}";
+        string prestige = _prestigeLevel > 0 ? $"   ★{_prestigeLevel} Prestige" : "";
+        string stats = $"Night {_dnc.NightCount}   Kills: {_killCount}   Deaths: {_deathCount}{prestige}";
         DrawText(stats, sw/2 - MeasureText(stats,20)/2, sh/2 - 80, 20, Color.LightGray);
 
         int mins = (int)_timePlayed / 60, secs = (int)_timePlayed % 60;
@@ -1827,6 +1849,7 @@ public class Game
                       : z.IsArmoured ? new Color((byte)160,(byte)165,(byte)180,(byte)255)
                       : z.IsCrawler  ? new Color((byte)150,(byte)80,(byte)20,(byte)255)
                       : z.IsPoison   ? new Color((byte)40,(byte)200,(byte)60,(byte)255)
+                      : z.IsGhost    ? new Color((byte)200,(byte)220,(byte)255,(byte)130)
                       : Color.Red;
             if (z.IsGigant)
                 DrawRectangle(ox + zdx * MM_SCALE - 3, oy + zdz * MM_SCALE - 3, MM_SCALE + 4, MM_SCALE + 4,

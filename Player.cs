@@ -318,7 +318,7 @@ public class Player
     const float StaminaDrain = 30f;
     const float StaminaRegen = 15f;
 
-    public bool IsMeleeSelected  => HotbarBlocks[SelectedSlot].blockId is 248 or 252 or 253 or 254;
+    public bool IsMeleeSelected  => HotbarBlocks[SelectedSlot].blockId is 247 or 248 or 252 or 253 or 254;
     public bool IsWeaponSelected => IsGunSelected || IsMeleeSelected;
 
     // Mining speed: pickaxes deal more hp damage per tick

@@ -30,13 +30,15 @@ public class WaveSpawner
         int armoured  = night >= 3 ? shamblers / 5 : 0;
         int crawlers  = night >= 4 ? shamblers / 6 : 0;
         int poison    = night >= 5 ? shamblers / 8 : 0;
-        shamblers    -= armoured + crawlers + poison;
+        int ghosts    = night >= 7 ? shamblers / 10 : 0;
+        shamblers    -= armoured + crawlers + poison + ghosts;
 
         for (int i = 0; i < shamblers; i++) SpawnOne(night, isRunner: false);
         for (int i = 0; i < runners;   i++) SpawnOne(night, isRunner: true);
         for (int i = 0; i < armoured;  i++) SpawnOne(night, isRunner: false, isArmoured: true);
         for (int i = 0; i < crawlers;  i++) SpawnOne(night, isRunner: false, isCrawler: true);
         for (int i = 0; i < poison;    i++) SpawnOne(night, isRunner: false, isPoison: true);
+        for (int i = 0; i < ghosts;    i++) SpawnOne(night, isRunner: false, isGhost: true);
 
         if (night >= 5) SpawnBoss(night);
         if (night >= 6) SpawnShaman(night);
@@ -83,7 +85,7 @@ public class WaveSpawner
         Active.Add(new Zombie(_world, pos, night, isRunner: false, isBoss: true));
     }
 
-    void SpawnOne(int night, bool isRunner, bool isArmoured = false, bool isCrawler = false, bool isPoison = false)
+    void SpawnOne(int night, bool isRunner, bool isArmoured = false, bool isCrawler = false, bool isPoison = false, bool isGhost = false)
     {
         float angle = (float)(_rng.NextDouble() * Math.PI * 2);
         Vector3 pos = new(
@@ -98,7 +100,7 @@ public class WaveSpawner
             if (_world.IsSolid(ix, y, iz)) { pos.Y = y + 1f; break; }
         }
 
-        Active.Add(new Zombie(_world, pos, night, isRunner, isBoss: false, isArmoured: isArmoured, isCrawler: isCrawler, isPoison: isPoison));
+        Active.Add(new Zombie(_world, pos, night, isRunner, isBoss: false, isArmoured: isArmoured, isCrawler: isCrawler, isPoison: isPoison, isGhost: isGhost));
     }
 
     void DespawnAll() => Active.Clear();

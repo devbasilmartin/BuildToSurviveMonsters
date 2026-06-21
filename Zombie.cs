@@ -23,11 +23,12 @@ public class Zombie
     public bool IsShaman   { get; private set; }
     public bool IsPoison   { get; private set; }
     public bool IsGigant   { get; private set; }
+    public bool IsGhost    { get; private set; }
     public int  XPReward   { get; private set; }
     public float SpeedMult = 1f;
     readonly VoxelWorld _world;
 
-    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false, bool isShaman = false, bool isPoison = false, bool isGigant = false)
+    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false, bool isShaman = false, bool isPoison = false, bool isGigant = false, bool isGhost = false)
     {
         _world     = world;
         Position   = pos;
@@ -38,6 +39,7 @@ public class Zombie
         IsShaman   = isShaman;
         IsPoison   = isPoison;
         IsGigant   = isGigant;
+        IsGhost    = isGhost;
 
         if (isBoss)
         {
@@ -45,6 +47,14 @@ public class Zombie
             _speed    = 1.4f + 0.05f * (nightCount - 5);
             _damage   = 20f;
             XPReward  = 100;
+        }
+        else if (isGhost)
+        {
+            HP = MaxHP = 50;
+            _speed      = 3.0f * (1f + 0.05f * (nightCount - 1));
+            _damage     = 8f;
+            _attackRate = 1.2f;
+            XPReward    = 15;
         }
         else if (isGigant)
         {
@@ -125,7 +135,7 @@ public class Zombie
                 else if (!BlockedAt(Position.X, Position.Z - slide))  Position.Z -= slide;
             }
 
-            Position.Y = SurfaceY(Position.X, Position.Z);
+            Position.Y = SurfaceY(Position.X, Position.Z) + (IsGhost ? 0.5f : 0f);
         }
         else
         {
@@ -148,6 +158,7 @@ public class Zombie
 
     bool BlockedAt(float x, float z)
     {
+        if (IsGhost) return false; // ghosts phase through all blocks
         float r = IsBoss ? 0.6f : 0.35f;
         int y = (int)MathF.Floor(Position.Y);
         for (int dy = 0; dy <= 1; dy++)
@@ -174,7 +185,19 @@ public class Zombie
         if (IsDead) return;
         byte flash = (byte)(int)(_hitFlash * 200);
 
-        if (IsGigant)
+        if (IsGhost)
+        {
+            float t  = (float)GetTime();
+            float fl = 0.7f + 0.3f * MathF.Sin(t * 4f + Position.X);
+            byte  ga = (byte)(int)(fl * 170);
+            var   gc = new Color((byte)220,(byte)230,(byte)255,ga);
+            DrawCube(Position + new Vector3(0, 1.2f, 0), 0.5f, 1.4f, 0.5f, gc);
+            DrawCube(Position + new Vector3(0, 2.1f, 0), 0.4f, 0.4f, 0.4f, gc);
+            float gf2 = (float)HP / MaxHP;
+            DrawCube(Position + new Vector3(0, 2.9f, 0), 0.5f, 0.07f, 0.06f, Color.DarkGray);
+            DrawCube(Position + new Vector3(-0.25f+0.25f*gf2, 2.9f, 0), 0.5f*gf2, 0.07f, 0.07f, Color.LightGray);
+        }
+        else if (IsGigant)
         {
             var gc = new Color((byte)Math.Min(255,25+flash),(byte)Math.Min(255,5+flash),(byte)Math.Min(255,5+flash),(byte)255);
             DrawCube(Position + new Vector3(0, 3.0f, 0), 3.0f, 6.0f, 3.0f, gc);  // massive body

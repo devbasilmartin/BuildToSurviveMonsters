@@ -131,6 +131,13 @@ public static class WorldGenerator
                 int wx = ccx+dx, wy = ccy+dy, wz = ccz+dz;
                 if (world.InBounds(wx, wy, wz)) world.SetVoxel(wx, wy, wz, 0);
             }
+            // Cave entrance marker at surface (cross of iron ore)
+            int markerY = SurfaceY(world, ccx, ccz);
+            SetIfAir(world, ccx-1, markerY, ccz,   7);
+            SetIfAir(world, ccx+1, markerY, ccz,   7);
+            SetIfAir(world, ccx,   markerY, ccz-1, 7);
+            SetIfAir(world, ccx,   markerY, ccz+1, 7);
+
             // Iron ore on cave walls
             for (int dx = -4; dx <= 4; dx++)
             for (int dy = -3; dy <= 3; dy++)

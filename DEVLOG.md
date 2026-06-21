@@ -6,6 +6,32 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 25 — Ghost Zombie, Shadow Blade, Cave Markers, Prestige Badge  *(2026-06-21)*
+
+**Ghost Zombie** (night 7+, ~1/10 shamblers)
+- Semi-transparent flickering blue-white visual; floats 0.5 units above ground
+- `BlockedAt` always returns false — phases through all walls and blocks
+- IMMUNE to: bullets, spike traps, turrets (ghosts ignore physical harm)
+- Only melee weapons can hit ghosts (sword, club, pickaxe — all melee work)
+- 50 HP, speed 3.0×scale, 8 damage, 1.2 attack rate, 15 XP
+- Faint translucent dot on minimap
+
+**Shadow Blade** (weapon blockId 247, recipe: 4 iron + 2 stone, Lv.6)
+- 270 base melee damage, 0.3s cooldown — fastest and hardest melee in the game
+- Dark near-black blade with blue tip viewmodel; "SHDW" in hotbar
+- Particularly effective against ghosts (as all melee is) and armoured (×2 bonus)
+- OutputId threshold lowered to 247 to include it in hotbar-placement path
+
+**Cave entrance marker**
+- 4 iron ore blocks placed at surface in a cross above each underground cave
+- Easy to spot on minimap as orange-brown cross; clear visual prompt to dig here
+
+**Prestige badge in pause screen**
+- "★N Prestige" appended to stats line when prestige level > 0
+- Visible immediately upon pausing after prestiging
+
+---
+
 ## Sprint 24 — Prestige, Ruins, Ore Caves, Gigant Slayer  *(2026-06-21)*
 
 **Prestige system** (P key at max level 8)
@@ -562,6 +588,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Cave entrance marker above underground caves (visible from surface)
-- [ ] Prestige badge shown on game-over screen ("★N Prestige")
-- [ ] New zombie: Ghost — phases through walls, can only be hit by melee
+- [ ] "Ghost Hunter" achievement: kill 10 ghost zombies
+- [ ] Cursed Night event: all zombies gain a random special type on spawn
+- [ ] Player size-up: eating 5 food at once gives brief +range melee
