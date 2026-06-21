@@ -6,6 +6,31 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 22 — Antidote, Bone Broth, Blackout Night, Bug Fixes  *(2026-06-21)*
+
+**New crafting recipes** (now 21 total)
+- **Antidote** (2 food + 1 iron): instantly cures poison + clears DOT accumulator
+- **Bone Broth** (4 food): +40 Hunger, +40 Thirst, +10 HP — efficient bulk restore
+- Antidote fills a clear gameplay need introduced by poison zombies
+
+**Blackout Night** (~10% chance per night)
+- Pitch-black sky; draw distance drops to 12 units
+- Torch glow and campfire flames are visually hidden (but campfire heating still works)
+- "BLACKOUT!" in wave preview banner; "BLACKOUT" on-screen text during night
+- Independent of fog/berserk/double-wave — all four can theoretically combine
+- Resets to false at day start
+
+**Combo King achievement** (#13)
+- Reach x10 melee combo in a single night
+- `_maxComboNight` tracked and reset each night start
+
+**Bug fixes**
+- DoRespawn now clears `PoisonTimer` and `_poisonAccum` — poisoned player no longer stays poisoned after respawn
+- Combo damage multiplier capped at 4× total (was unbounded)
+- Berserk SpeedMult now applied AFTER both normal and double-wave spawns (so double-wave zombies also get buffed)
+
+---
+
 ## Sprint 21 — Poison Zombie, Berserk Night, Melee Combo  *(2026-06-21)*
 
 **Poison Zombie** (night 5+, ~1/8 shamblers)
@@ -489,6 +514,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Antidote recipe: consume to cure poison
-- [ ] Blackout Night event: torches and campfires invisible (no glow)
-- [ ] Combo achievement: reach x10 combo in one night
+- [ ] Zombie gigant (ultra-rare): 5x size, 2000 HP, boss-tier loot
+- [ ] Player level cap increase (beyond 5 — maybe a "prestige" mechanic)
+- [ ] Combo visual feedback: screen shake on x5+ combo

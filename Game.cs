@@ -29,7 +29,9 @@ public class Game
     bool    _rainDay               = false;
     bool    _rainDaySurvived       = false;
     bool    _berserkNight          = false;
+    bool    _blackoutNight         = false;
     int     _meleeCombo            = 0;
+    int     _maxComboNight         = 0;
     float   _meleeComboTimer       = 0f;
     float   _poisonAccum           = 0f;
     float   _lightningTimer        = 20f;
@@ -114,7 +116,9 @@ public class Game
         new("Iron Ration",    -11,  1, new[]{ new Ingredient(3,3), new Ingredient(8,1) }),  // 3 wood + 1 iron → bulk restore
         new("Turret Upgrade",   -12,  1, new[]{ new Ingredient(8,3), new Ingredient(2,3) },  RequiredLevel:3),
         new("Health Gem",       -13,  1, new[]{ new Ingredient(8,5), new Ingredient(2,2) },  RequiredLevel:4), // 5 iron + 2 stone -> +25 MaxHP
-        new("Berserker Ring",   -14,  1, new[]{ new Ingredient(8,3), new Ingredient(3,3) },  RequiredLevel:3), // 3 iron + 3 wood -> +50% melee dmg
+        new("Berserker Ring",   -14,  1, new[]{ new Ingredient(8,3), new Ingredient(3,3) },  RequiredLevel:3),
+        new("Antidote",         -15,  1, new[]{ new Ingredient(11,2), new Ingredient(8,1) }),                   // 2 food + 1 iron → cure poison
+        new("Bone Broth",       -16,  1, new[]{ new Ingredient(11,4) }),                                        // 4 food → bulk hunger+thirst+HP
     };
 
     public void Init()
@@ -147,18 +151,21 @@ public class Game
             new() { Name="Architect",        Description="Place 10 building blocks" },
             new() { Name="Hoarder",          Description="Hold 50+ ammo at once" },
             new() { Name="Untouchable",      Description="Survive a full respawn invincibility" },
+            new() { Name="Combo King",       Description="Reach x10 melee combo in one night" },
         };
 
         // Day/night
         _dnc = new DayNightCycle();
         _dnc.OnNightStart += () => {
-            _nightCleared    = false;
-            _nightStartDelay = 2f;
-            _fogNight        = _rng.Next(10) < 3; // 30% fog chance
-            _nightKills      = 0;
-            _xpBeforeNight   = _player.XP;
-            if (_rainDay) _rainDaySurvived = true; // achievement: survived a rainy day
-            _rainDay         = false; // rain clears at night
+            _nightCleared     = false;
+            _nightStartDelay  = 2f;
+            _fogNight         = _rng.Next(10) < 3;
+            _blackoutNight    = _rng.Next(10) == 0; // 10% blackout
+            _nightKills       = 0;
+            _maxComboNight    = 0;
+            _xpBeforeNight    = _player.XP;
+            if (_rainDay) _rainDaySurvived = true;
+            _rainDay           = false;
             _player.SlowFactor = 1f;
             if (_dnc.NightCount >= 5) _bossWarningTimer = 5f;
             var (s, r, a, c, b) = _waves.GetWavePreview(_dnc.NightCount);
@@ -167,17 +174,15 @@ public class Game
             if (a > 0) _waveBannerMsg += $"  +  {a} armoured";
             if (c > 0) _waveBannerMsg += $"  +  {c} crawlers";
             if (b)     _waveBannerMsg += "  +  BOSS!";
-            if (_fogNight) _waveBannerMsg += "   [FOG]";
-            _berserkNight = _rng.Next(8) == 0; // ~12.5% berserk
+            if (_fogNight)      _waveBannerMsg += "   [FOG]";
+            if (_blackoutNight) _waveBannerMsg += "   [BLACKOUT!]";
+            // Double-wave before berserk so SpeedMult applies to all
+            _berserkNight = _rng.Next(8) == 0;
+            if (_rng.Next(5) == 0) { _waves.ForceExtraSpawn(); _waveBannerMsg += "   [DOUBLE WAVE!]"; }
             if (_berserkNight)
             {
                 foreach (var z in _waves.Active) z.SpeedMult = 2f;
                 _waveBannerMsg += "   [BERSERK!]";
-            }
-            if (_rng.Next(5) == 0) // 20% double wave
-            {
-                _waves.ForceExtraSpawn();
-                _waveBannerMsg += "   [DOUBLE WAVE!]";
             }
             _waveBannerTimer = 4f;
         };
@@ -187,9 +192,10 @@ public class Game
                 _lastNightCleared = _nightCleared;
                 _daySummaryTimer  = 6f;
             }
-            _nightCleared = false;
-            _fogNight     = false;
-            _berserkNight = false;
+            _nightCleared  = false;
+            _fogNight      = false;
+            _berserkNight  = false;
+            _blackoutNight = false;
             _rainDay      = _rng.Next(5) == 0;
             _player.SlowFactor = _rainDay ? 0.75f : 1f;
             if (_rainDay) _lightningTimer = 15f + _rng.Next(16); // 15-30s to first strike
@@ -449,9 +455,11 @@ public class Game
     void DoRespawn()
     {
         _player.Respawn(_spawnPos);
-        _invincibleTimer  = 8f;
-        _starvationTimer  = 0f;
-        _craftingOpen     = false;
+        _player.PoisonTimer = 0f;   // bug fix: clear poison on respawn
+        _invincibleTimer    = 8f;
+        _starvationTimer    = 0f;
+        _poisonAccum        = 0f;
+        _craftingOpen       = false;
         _bullets.Clear();
         _deathCount++;
     }
@@ -580,12 +588,13 @@ public class Game
             if (toZ.LengthSquared() > 0 && Vector3.Dot(fwd2D, Vector3.Normalize(toZ)) > 0.3f)
             {
                 bool wasDead = z.IsDead;
-                float comboMult = 1f + 0.15f * Math.Max(0, _meleeCombo - 1);
+                float comboMult = 1f + Math.Min(3f, 0.15f * Math.Max(0, _meleeCombo - 1)); // cap at 4×
                 int meleeDmg = (int)((z.IsArmoured ? dmg * 2 : dmg) * comboMult);
                 z.TakeDamage(meleeDmg);
                 if (z.IsDead && !wasDead) AwardKill(z, fromMelee: true);
                 _meleeCombo++;
                 _meleeComboTimer = 1.5f;
+                _maxComboNight   = Math.Max(_maxComboNight, _meleeCombo);
             }
         }
     }
@@ -639,6 +648,7 @@ public class Game
         UnlockAch(10, _player.BlocksPlaced >= 10);
         UnlockAch(11, _player.Ammo >= 50);
         UnlockAch(12, _invincibilityCompleted);
+        UnlockAch(13, _maxComboNight >= 10);
     }
 
     void UnlockAch(int idx, bool condition)
@@ -852,6 +862,17 @@ public class Game
         {
             _player.MeleeDamageMultiplier = Math.Min(3f, _player.MeleeDamageMultiplier + 0.5f);
         }
+        else if (r.OutputId == -15)
+        {
+            _player.PoisonTimer = 0f; // instant antidote
+            _poisonAccum = 0f;
+        }
+        else if (r.OutputId == -16)
+        {
+            _player.Hunger = Math.Min(100f, _player.Hunger + 40f);
+            _player.Thirst = Math.Min(100f, _player.Thirst + 40f);
+            _player.HP     = Math.Min(_player.MaxHP, _player.HP + 10);
+        }
         else if (r.OutputId >= 248)
         {
             // Weapon/tool — put in first empty hotbar slot
@@ -938,7 +959,9 @@ public class Game
         _rainDay                  = false;
         _rainDaySurvived          = false;
         _berserkNight             = false;
+        _blackoutNight            = false;
         _meleeCombo               = 0;
+        _maxComboNight            = 0;
         _meleeComboTimer          = 0f;
         _poisonAccum              = 0f;
         _lightningTimer           = 20f;
@@ -962,7 +985,8 @@ public class Game
     {
         // Sky color shifts with day phase
         Color sky = _dnc.Phase == DayPhase.Night
-            ? new Color((byte)10,  (byte)10,  (byte)30,  (byte)255)
+            ? (_blackoutNight ? new Color((byte)0,(byte)0,(byte)0,(byte)255)
+                              : new Color((byte)10,(byte)10,(byte)30,(byte)255))
             : _dnc.Phase == DayPhase.Warning
                 ? new Color((byte)200, (byte)100, (byte)30,  (byte)255)
                 : _rainDay
@@ -974,7 +998,8 @@ public class Game
 
         BeginMode3D(_camera);
 
-        _world.Draw(_player.EyePos, _fogNight ? 15f : 40f);
+        float drawDist = _fogNight ? 15f : _blackoutNight ? 12f : 40f;
+        _world.Draw(_player.EyePos, drawDist);
         _waves.Draw();
 
         // Highlight target voxel
@@ -1023,9 +1048,8 @@ public class Game
                 new Color((byte)255,(byte)230,(byte)80,(byte)(int)(t*140)));
         }
 
-        // Campfire flames + torch glow + spike decorations + turret barrels
-        DrawCampfireFlames();
-        DrawTorchGlow();
+        // Campfire flames + torch glow (suppressed during blackout)
+        if (!_blackoutNight) { DrawCampfireFlames(); DrawTorchGlow(); }
         DrawSpikeDecorations();
         DrawTurretBarrels();
 
@@ -1286,8 +1310,14 @@ public class Game
             weatherY -= 28;
         }
         if (_berserkNight && _dnc.Phase == DayPhase.Night)
+        {
             DrawText("BERSERK!", sw - MM_SIZE - 10, weatherY, 18,
                 new Color((byte)255,(byte)80,(byte)30,(byte)220));
+            weatherY -= 26;
+        }
+        if (_blackoutNight && _dnc.Phase == DayPhase.Night)
+            DrawText("BLACKOUT", sw - MM_SIZE - 10, weatherY, 18,
+                new Color((byte)200,(byte)200,(byte)210,(byte)180));
 
         // Kill count + death count (left of minimap)
         DrawText($"Kills: {_killCount}", sw - MM_SIZE - 100, 10, 18, Color.Orange);
