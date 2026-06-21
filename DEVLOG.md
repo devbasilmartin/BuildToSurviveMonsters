@@ -6,6 +6,27 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 18 — Achievements, Turret Upgrade, Bug Fixes  *(2026-06-21)*
+
+**Achievement system** (8 achievements)
+- First Blood (1 kill), Night Owl (1 night), Warlord (50 kills), Iron Will (5 nights),
+  Blacksmith (5 crafts), Boss Hunter (boss kill), Melee Master (melee kill), Decade Survivor (10 nights)
+- Gold "Achievement: Name!" banner fades at bottom-centre for 3 seconds on unlock
+- Pause screen expanded to 2-column grid showing all achievements with [X]/[ ] checkmark
+- `AwardKill(fromMelee)` param tracks melee kills; `_itemsCrafted` tracks crafts in TryCraft
+
+**Turret Upgrade recipe** (3 iron + 3 stone, Lv.3)
+- Reduces turret fire interval by 0.5s per craft (starts at 2s, minimum 0.5s/shot)
+- Craftable up to 3 times for 0.5s rapid-fire turrets
+- Current turret rate shown in pause screen: "Turret: N.Ns/shot"
+
+**Bug fixes**
+- Day summary no longer renders while pause screen is open (overlay conflict)
+- Pause screen now has a dark panel background for readability
+- Night Owl/Iron Will/Decade Survivor achievements only trigger in Day phase (not mid-night)
+
+---
+
 ## Sprint 17 — Shaman, Loot Drops, Crafting Scroll, New Recipes  *(2026-06-21)*
 
 **Zombie Shaman** (night 6+, 1 per wave)
@@ -395,8 +416,8 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 ## Backlog
 
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
-- [ ] Save/load world state
+- [ ] Save/load world state  
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Turret upgrade crafting: Fast Turret (fires every 0.8s, 3 iron + 3 stone)
-- [ ] Day/night weather: rain slows player movement and extinguishes campfires
-- [ ] Achievement system: "Survived 10 nights", "Kill 100 zombies", displayed in pause screen
+- [ ] Rain weather: occasional rain event, slows player, extinguishes campfires
+- [ ] More achievements: "Fully Levelled", "All Weapons", "10 Turrets Placed"
+- [ ] Scoreboard: top-3 run scores tracked in memory per session

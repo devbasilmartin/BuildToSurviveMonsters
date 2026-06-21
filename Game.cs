@@ -16,9 +16,18 @@ public class Game
 
     bool    _gameOver          = false;
     bool    _craftingOpen      = false;
-    bool    _pauseOpen          = false;
-    int     _selectedRecipe     = 0;
-    int     _recipeScrollOffset = 0;
+    bool    _pauseOpen            = false;
+    int     _selectedRecipe       = 0;
+    int     _recipeScrollOffset   = 0;
+    bool    _bossKilled           = false;
+    bool    _meleeKillMade        = false;
+    int     _itemsCrafted         = 0;
+    float   _achieveBannerTimer   = 0f;
+    string  _achieveBannerMsg     = "";
+    float   _turretFireInterval   = 2f;
+
+    struct Achievement { public string Name; public string Description; public bool Unlocked; }
+    Achievement[] _achievements = null!;
     float   _timePlayed        = 0f;
     public  bool ShouldQuit    = false;
     float   _gunRecoil         = 0f;
@@ -89,6 +98,7 @@ public class Game
         new("Steel Sword",    248,  1, new[]{ new Ingredient(8,2), new Ingredient(2,3) },  RequiredLevel:5),
         new("Large Medpack",  -10,  1, new[]{ new Ingredient(11,5) }),                       // 5 food → +75 HP
         new("Iron Ration",    -11,  1, new[]{ new Ingredient(3,3), new Ingredient(8,1) }),  // 3 wood + 1 iron → bulk restore
+        new("Turret Upgrade", -12,  1, new[]{ new Ingredient(8,3), new Ingredient(2,3) },  RequiredLevel:3), // -0.5s fire rate
     };
 
     public void Init()
@@ -105,6 +115,18 @@ public class Game
 
         _spawnPos = new Vector3(cx, spawnY, cz);
         _player = new Player(_world, _spawnPos);
+
+        _achievements = new Achievement[]
+        {
+            new() { Name="First Blood",      Description="Kill your first zombie" },
+            new() { Name="Night Owl",        Description="Survive one full night" },
+            new() { Name="Warlord",          Description="Kill 50 zombies" },
+            new() { Name="Iron Will",        Description="Survive 5 nights" },
+            new() { Name="Blacksmith",       Description="Craft 5 items" },
+            new() { Name="Boss Hunter",      Description="Kill a boss zombie" },
+            new() { Name="Melee Master",     Description="Kill a zombie with melee" },
+            new() { Name="Decade Survivor",  Description="Survive 10 nights" },
+        };
 
         // Day/night
         _dnc = new DayNightCycle();
@@ -321,8 +343,12 @@ public class Game
 
         // Turret auto-fire
         _turretTimer += dt;
-        if (_turretTimer >= 2f) { _turretTimer = 0f; UpdateTurrets(); }
+        if (_turretTimer >= _turretFireInterval) { _turretTimer = 0f; UpdateTurrets(); }
         if (_turretFlashTimer > 0) _turretFlashTimer -= dt;
+
+        // Achievement checks
+        if (_achieveBannerTimer > 0) _achieveBannerTimer -= dt;
+        CheckAchievements();
 
         // Wave preview banner timer
         if (_waveBannerTimer > 0) _waveBannerTimer -= dt;
@@ -492,18 +518,20 @@ public class Game
             if (toZ.LengthSquared() > 0 && Vector3.Dot(fwd2D, Vector3.Normalize(toZ)) > 0.3f)
             {
                 bool wasDead = z.IsDead;
-                int meleeDmg = z.IsArmoured ? dmg * 2 : dmg; // melee bypasses + bonus vs armoured
+                int meleeDmg = z.IsArmoured ? dmg * 2 : dmg;
                 z.TakeDamage(meleeDmg);
-                if (z.IsDead && !wasDead) AwardKill(z);
+                if (z.IsDead && !wasDead) AwardKill(z, fromMelee: true);
             }
         }
     }
 
-    void AwardKill(Zombie z)
+    void AwardKill(Zombie z, bool fromMelee = false)
     {
         _killCount++;
         _nightKills++;
         _player.Ammo += _rng.Next(1, 4);
+        if (z.IsBoss)        _bossKilled    = true;
+        if (fromMelee)       _meleeKillMade = true;
         if (z.IsBoss)
         {
             _player.Ammo += 5;
@@ -527,6 +555,28 @@ public class Game
                 _player.Inventory[11] = curF + 1;
             }
         }
+    }
+
+    void CheckAchievements()
+    {
+        if (_achievements == null) return;
+        bool isDay = _dnc.Phase != DayPhase.Night;
+        UnlockAch(0, _killCount >= 1);
+        UnlockAch(1, _dnc.NightCount >= 1 && isDay);
+        UnlockAch(2, _killCount >= 50);
+        UnlockAch(3, _dnc.NightCount >= 5 && isDay);
+        UnlockAch(4, _itemsCrafted >= 5);
+        UnlockAch(5, _bossKilled);
+        UnlockAch(6, _meleeKillMade);
+        UnlockAch(7, _dnc.NightCount >= 10 && isDay);
+    }
+
+    void UnlockAch(int idx, bool condition)
+    {
+        if (!condition || _achievements[idx].Unlocked) return;
+        _achievements[idx].Unlocked = true;
+        _achieveBannerMsg   = $"Achievement: {_achievements[idx].Name}!";
+        _achieveBannerTimer = 3f;
     }
 
     void CheckLevelUp()
@@ -680,6 +730,8 @@ public class Game
         foreach (var ing in r.Cost)
             _player.Inventory[ing.Id] -= ing.Amt;
 
+        _itemsCrafted++;
+
         if (r.OutputId == -1)
         {
             _player.Ammo += r.OutputCount;
@@ -717,6 +769,10 @@ public class Game
             _player.Hunger = Math.Min(100f, _player.Hunger + 80f);
             _player.Thirst = Math.Min(100f, _player.Thirst + 50f);
         }
+        else if (r.OutputId == -12)
+        {
+            _turretFireInterval = Math.Max(0.5f, _turretFireInterval - 0.5f);
+        }
         else if (r.OutputId >= 248)
         {
             // Weapon/tool — put in first empty hotbar slot
@@ -751,6 +807,11 @@ public class Game
         _pauseOpen            = false;
         _selectedRecipe       = 0;
         _recipeScrollOffset   = 0;
+        _bossKilled           = false;
+        _meleeKillMade        = false;
+        _itemsCrafted         = 0;
+        _achieveBannerTimer   = 0f;
+        _turretFireInterval   = 2f;
         _timePlayed       = 0f;
         _levelUpTimer     = 0f;
         _waveBannerTimer  = 0f;
@@ -954,7 +1015,7 @@ public class Game
 
         if (_craftingOpen)            DrawCraftingUI();
         if (_pauseOpen)               DrawPauseScreen();
-        if (_daySummaryTimer > 0)     DrawDaySummary();
+        if (_daySummaryTimer > 0 && !_pauseOpen) DrawDaySummary();
         if (_gameOver)                DrawGameOver();
 
         EndDrawing();
@@ -1200,6 +1261,17 @@ public class Game
                 new Color((byte)255,(byte)215,(byte)0,alpha));
         }
 
+        // Achievement banner (bottom-centre, distinct from top banners)
+        if (_achieveBannerTimer > 0)
+        {
+            byte aa = (byte)(int)(Math.Min(1f, _achieveBannerTimer) * 255);
+            int abw = MeasureText(_achieveBannerMsg, 20);
+            DrawRectangle(sw/2 - abw/2 - 12, sh - 150, abw + 24, 34,
+                new Color((byte)0,(byte)0,(byte)0,(byte)(aa/2)));
+            DrawText(_achieveBannerMsg, sw/2 - abw/2, sh - 145, 20,
+                new Color((byte)255,(byte)215,(byte)0,aa));
+        }
+
         // Wave preview banner
         if (_waveBannerTimer > 0)
         {
@@ -1284,22 +1356,41 @@ public class Game
         int sw = GetScreenWidth(), sh = GetScreenHeight();
         DrawRectangle(0, 0, sw, sh, new Color((byte)0,(byte)0,(byte)0,(byte)160));
 
+        // Panel
+        DrawRectangle(sw/2-230, sh/2-140, 460, 440, new Color((byte)15,(byte)15,(byte)20,(byte)200));
+
         string title = "PAUSED";
-        DrawText(title, sw/2 - MeasureText(title,48)/2, sh/2 - 130, 48, Color.White);
+        DrawText(title, sw/2 - MeasureText(title,40)/2, sh/2 - 130, 40, Color.White);
 
         string stats = $"Night {_dnc.NightCount}   Kills: {_killCount}   Deaths: {_deathCount}";
-        DrawText(stats, sw/2 - MeasureText(stats,22)/2, sh/2 - 55, 22, Color.LightGray);
+        DrawText(stats, sw/2 - MeasureText(stats,20)/2, sh/2 - 80, 20, Color.LightGray);
 
         int mins = (int)_timePlayed / 60, secs = (int)_timePlayed % 60;
-        string timeStr = $"Time: {mins}:{secs:D2}";
-        DrawText(timeStr, sw/2 - MeasureText(timeStr,18)/2, sh/2 - 20, 18, Color.Gray);
+        string timeStr = $"Time: {mins}:{secs:D2}   Turret: {_turretFireInterval:0.0}s/shot";
+        DrawText(timeStr, sw/2 - MeasureText(timeStr,16)/2, sh/2 - 56, 16, Color.Gray);
 
-        DrawText("ESC — Resume",
-            sw/2 - MeasureText("ESC — Resume",22)/2, sh/2 + 20, 22, Color.White);
-        DrawText("R — Restart",
-            sw/2 - MeasureText("R — Restart",22)/2, sh/2 + 50, 22, Color.White);
-        DrawText("Q — Quit Game",
-            sw/2 - MeasureText("Q — Quit Game",22)/2, sh/2 + 80, 22,
+        // Achievements
+        DrawLine(sw/2 - 200, sh/2 - 36, sw/2 + 200, sh/2 - 36, new Color((byte)60,(byte)60,(byte)80,(byte)255));
+        DrawText("ACHIEVEMENTS", sw/2 - MeasureText("ACHIEVEMENTS",16)/2, sh/2 - 28, 16,
+            new Color((byte)200,(byte)160,(byte)50,(byte)255));
+        if (_achievements != null)
+        {
+            for (int i = 0; i < _achievements.Length; i++)
+            {
+                int row = i % 4, col = i / 4;
+                int ax = sw/2 - 220 + col * 230;
+                int ay = sh/2 - 8 + row * 22;
+                bool done = _achievements[i].Unlocked;
+                DrawText(done ? "[X]" : "[ ]", ax, ay, 14, done ? Color.Green : Color.DarkGray);
+                DrawText(_achievements[i].Name, ax + 30, ay, 14, done ? Color.LightGray : Color.DarkGray);
+            }
+        }
+
+        // Controls
+        DrawLine(sw/2 - 200, sh/2 + 86, sw/2 + 200, sh/2 + 86, new Color((byte)60,(byte)60,(byte)80,(byte)255));
+        DrawText("ESC — Resume",  sw/2 - MeasureText("ESC — Resume",18)/2,  sh/2 + 96,  18, Color.White);
+        DrawText("R — Restart",   sw/2 - MeasureText("R — Restart",18)/2,   sh/2 + 120, 18, Color.White);
+        DrawText("Q — Quit Game", sw/2 - MeasureText("Q — Quit Game",18)/2, sh/2 + 144, 18,
             new Color((byte)210,(byte)70,(byte)70,(byte)255));
     }
 
