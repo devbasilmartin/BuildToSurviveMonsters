@@ -6,6 +6,32 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 11 — Wave Preview, Level Variety, Larger World, Healing Amulet  *(2026-06-21)*
+
+**Wave preview banner**
+- On every night start: 4-second amber banner showing exact wave composition
+  - "Night N: X zombies + Y runners + BOSS!"
+- Computed from `WaveSpawner.GetWavePreview(night)` — same formula as actual spawn
+- Gives players time to position before the horde arrives
+
+**Level-up variety**
+- Odd levels (1, 3, 5): +15 MaxHP + 15 healing (as before)
+- Even levels (2, 4): +0.4 MoveSpeed bonus (cumulative, shows as "SPD+0.4" in HUD)
+- `Player.SpeedBonus` added to `MoveSpeed` in `HandleMovement`
+- Persists through respawns (progression reward)
+
+**Healing Amulet** (new crafting recipe #12)
+- Craft: 3 iron + 2 stone → +0.1 HP/s passive regen (stackable up to 1.0 HP/s)
+- `_healAccum` float accumulates fractional healing until ≥1 whole HP
+- "HP+0.1/s" shown in HUD when active; only applies when below max HP
+
+**Larger world** (12×12 chunks → 192×192 blocks, was 128×128)
+- ~2.25× more surface area to explore
+- Content scaled: 70 trees, 7 boulders, 6 iron deposits, 11 crates, 4 ponds
+- No performance hit — rendering range is unchanged; memory cost is ~1MB extra
+
+---
+
 ## Sprint 10 — XP/Level System, Ponds, More Iron  *(2026-06-21)*
 
 **XP / Level system**
@@ -239,6 +265,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Level-up bonus variety: every other level gives speed boost instead of MaxHP
-- [ ] Larger world: increase from 128×128 to 256×256 for more exploration
-- [ ] Wave preview: show upcoming wave composition at night start
+- [ ] Random world events: meteor strike, fog of war, double-wave night
+- [ ] Crafting unlock system: some recipes locked until required level
+- [ ] Thrown explosive: craft with iron + wood, G to toss at crosshair target

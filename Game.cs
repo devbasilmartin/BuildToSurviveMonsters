@@ -34,6 +34,9 @@ public class Game
     float   _spikeTimer        = 0f;
     float   _levelUpTimer      = 0f;
     string  _levelUpMsg        = "";
+    float   _waveBannerTimer   = 0f;
+    string  _waveBannerMsg     = "";
+    float   _healAccum         = 0f;
     Vector3 _spawnPos;
 
     static readonly int[] LevelThresholds = { 50, 150, 300, 500, 750 };
@@ -69,12 +72,13 @@ public class Game
         new("Iron Armor",      -4,  1, new[]{ new Ingredient(8,6) }),                        // 6 iron
         new("Stone Hatchet",  249,  1, new[]{ new Ingredient(2,2), new Ingredient(3,2) }),  // 2 stone + 2 wood → 2x mine
         new("Iron Pickaxe",   250,  1, new[]{ new Ingredient(8,3), new Ingredient(3,2) }),  // 3 iron + 2 wood  → 3x mine
+        new("Healing Amulet",  -8,  1, new[]{ new Ingredient(8,3), new Ingredient(2,2) }),  // 3 iron + 2 stone → +0.1 HP/s
     };
 
     public void Init()
     {
         // World
-        _world = new VoxelWorld(chunksX: 8, chunksY: 2, chunksZ: 8);
+        _world = new VoxelWorld(chunksX: 12, chunksY: 2, chunksZ: 12);
         WorldGenerator.Generate(_world, seed: Environment.TickCount);
 
         // Find spawn — stand on surface at world center
@@ -89,9 +93,15 @@ public class Game
         // Day/night
         _dnc = new DayNightCycle();
         _dnc.OnNightStart += () => {
-            _nightCleared     = false;
-            _nightStartDelay  = 2f;
+            _nightCleared    = false;
+            _nightStartDelay = 2f;
             if (_dnc.NightCount >= 5) _bossWarningTimer = 5f;
+            // Wave preview banner
+            var (s, r, b) = _waves.GetWavePreview(_dnc.NightCount);
+            _waveBannerMsg   = $"Night {_dnc.NightCount}:  {s} zombies";
+            if (r > 0)       _waveBannerMsg += $"  +  {r} runners";
+            if (b)           _waveBannerMsg += "  +  BOSS!";
+            _waveBannerTimer = 4f;
         };
         _dnc.OnDayStart += () => { _nightCleared = false; };
 
@@ -235,6 +245,21 @@ public class Game
         // Level-up banner timer
         if (_levelUpTimer > 0) _levelUpTimer -= dt;
 
+        // Wave preview banner timer
+        if (_waveBannerTimer > 0) _waveBannerTimer -= dt;
+
+        // Passive healing from Healing Amulet
+        if (_player.HealRate > 0 && _player.HP > 0 && _player.HP < _player.MaxHP)
+        {
+            _healAccum += _player.HealRate * dt;
+            if (_healAccum >= 1f)
+            {
+                int heal = (int)_healAccum;
+                _player.HP = Math.Min(_player.MaxHP, _player.HP + heal);
+                _healAccum -= heal;
+            }
+        }
+
         // Minimap refresh
         _mmAge += dt;
         if (_mmAge >= 1f) { _mmAge = 0f; _mmDirty = true; }
@@ -330,12 +355,21 @@ public class Game
         if (_player.Level >= LevelThresholds.Length) return;
         if (_player.XP < LevelThresholds[_player.Level]) return;
         _player.Level++;
-        _player.MaxHP += 15;
-        _player.HP = Math.Min(_player.HP + 15, _player.MaxHP);
-        _levelUpMsg   = $"LEVEL UP!  Level {_player.Level}  +15 Max HP";
+        if (_player.Level % 2 == 0)
+        {
+            // Even levels: speed boost
+            _player.SpeedBonus += 0.4f;
+            _levelUpMsg = $"LEVEL UP!  Level {_player.Level}  +Speed";
+        }
+        else
+        {
+            // Odd levels: max HP boost
+            _player.MaxHP += 15;
+            _player.HP = Math.Min(_player.HP + 15, _player.MaxHP);
+            _levelUpMsg = $"LEVEL UP!  Level {_player.Level}  +15 Max HP";
+        }
         _levelUpTimer = 3f;
-        // Recurse in case multiple thresholds crossed in one kill
-        CheckLevelUp();
+        CheckLevelUp(); // recurse for multi-threshold boss kills
     }
 
     void UpdateBullets(float dt)
@@ -475,6 +509,10 @@ public class Game
         {
             _player.HP = Math.Min(_player.MaxHP, _player.HP + 25);
         }
+        else if (r.OutputId == -8)
+        {
+            _player.HealRate = Math.Min(1f, _player.HealRate + 0.1f); // caps at 1 HP/s
+        }
         else if (r.OutputId >= 249)
         {
             // Weapon/tool — put in first empty hotbar slot
@@ -510,6 +548,8 @@ public class Game
         _selectedRecipe   = 0;
         _timePlayed       = 0f;
         _levelUpTimer     = 0f;
+        _waveBannerTimer  = 0f;
+        _healAccum        = 0f;
         Init();
         _gameOver = false;
     }
@@ -715,6 +755,20 @@ public class Game
         Color ammoCol = _player.Ammo > 0 ? Color.White : Color.Red;
         DrawText($"AMMO: {_player.Ammo}", 220, sh - 28, 16, ammoCol);
 
+        // Speed + heal indicators
+        int statsX = 220;
+        if (_player.SpeedBonus > 0)
+        {
+            string spd = $"SPD+{_player.SpeedBonus:0.0}";
+            DrawText(spd, statsX, sh - 28, 14, new Color((byte)100,(byte)220,(byte)255,(byte)255));
+            statsX += MeasureText(spd, 14) + 10;
+        }
+        if (_player.HealRate > 0)
+        {
+            string heal = $"HP+{_player.HealRate:0.0}/s";
+            DrawText(heal, statsX, sh - 28, 14, new Color((byte)100,(byte)255,(byte)150,(byte)255));
+        }
+
         // Armor
         if (_player.ArmorTier > 0)
         {
@@ -869,6 +923,17 @@ public class Game
                 new Color((byte)0,(byte)0,(byte)0,(byte)(alpha/2)));
             DrawText(_levelUpMsg, sw/2 - luw/2, sh/2 + 58, 26,
                 new Color((byte)255,(byte)215,(byte)0,alpha));
+        }
+
+        // Wave preview banner
+        if (_waveBannerTimer > 0)
+        {
+            byte alpha = (byte)(int)(Math.Min(1f, _waveBannerTimer) * 255);
+            int wbw = MeasureText(_waveBannerMsg, 22);
+            DrawRectangle(sw/2 - wbw/2 - 12, sh/2 - 190, wbw + 24, 36,
+                new Color((byte)0,(byte)0,(byte)0,(byte)(alpha/2)));
+            DrawText(_waveBannerMsg, sw/2 - wbw/2, sh/2 - 183, 22,
+                new Color((byte)255,(byte)180,(byte)0,alpha));
         }
 
         // Wave cleared banner

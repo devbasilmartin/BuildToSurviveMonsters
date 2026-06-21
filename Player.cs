@@ -107,7 +107,7 @@ public class Player
         if (move.LengthSquared() > 0) move = Vector3.Normalize(move);
 
         // Horizontal
-        Vector3 hDelta = move * MoveSpeed * dt;
+        Vector3 hDelta = move * (MoveSpeed + SpeedBonus) * dt;
         MoveAndCollide(ref hDelta, dt, horizontal: true);
         Position.X += hDelta.X;
         Position.Z += hDelta.Z;
@@ -276,9 +276,11 @@ public class Player
     public int   ArmorTier  = 0; // 0=none  1=wood(-15%)  2=stone(-35%)  3=iron(-55%)
     public float Hunger     = 100f;
     public float Thirst     = 100f;
-    public bool  Invincible = false;
-    public int   XP         = 0;
-    public int   Level      = 0;
+    public bool  Invincible  = false;
+    public int   XP          = 0;
+    public int   Level       = 0;
+    public float SpeedBonus  = 0f;  // added by level-ups at even levels
+    public float HealRate    = 0f;  // HP/s passive regen (from Healing Amulet)
 
     public bool IsMeleeSelected  => HotbarBlocks[SelectedSlot].blockId is 252 or 253 or 254;
     public bool IsWeaponSelected => IsGunSelected || IsMeleeSelected;

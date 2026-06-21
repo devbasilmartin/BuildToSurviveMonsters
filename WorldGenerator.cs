@@ -20,8 +20,8 @@ public static class WorldGenerator
 
         var rng = new Random(seed);
 
-        // ── Trees (40) — trunk + ellipsoid leaf canopy ────────────────
-        for (int i = 0; i < 40; i++)
+        // ── Trees (70) — trunk + ellipsoid leaf canopy ────────────────
+        for (int i = 0; i < 70; i++)
         {
             int tx = rng.Next(3, sx - 3);
             int tz = rng.Next(3, sz - 3);
@@ -44,9 +44,9 @@ public static class WorldGenerator
             }
         }
 
-        // ── Stone boulders (4 = trees/10) — low mound, wide not tall ─
+        // ── Stone boulders (7) — low mound, wide not tall ────────────
         // Shape: 2×2 footprint at surface + 1 cap block = 5 blocks total
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 7; i++)
         {
             int cx = rng.Next(3, sx - 3);
             int cz = rng.Next(3, sz - 3);
@@ -59,8 +59,8 @@ public static class WorldGenerator
             SetIfAir(world, cx,   sy2+1, cz,   2); // single cap — off-centre, looks natural
         }
 
-        // ── Iron ore deposits (3) — horizontal vein mostly buried ──
-        for (int i = 0; i < 3; i++)
+        // ── Iron ore deposits (6) — horizontal vein mostly buried ──
+        for (int i = 0; i < 6; i++)
         {
             int cx = rng.Next(4, sx - 4);
             int cz = rng.Next(4, sz - 4);
@@ -73,8 +73,8 @@ public static class WorldGenerator
             SetIfAir  (world, cx+1, surface,   cz,   7);
         }
 
-        // ── Ponds (2): water + sand shore ────────────────────────────
-        for (int i = 0; i < 2; i++)
+        // ── Ponds (4): water + sand shore ────────────────────────────
+        for (int i = 0; i < 4; i++)
         {
             int pcx = rng.Next(10, sx - 10);
             int pcz = rng.Next(10, sz - 10);
@@ -104,8 +104,8 @@ public static class WorldGenerator
         if (world.InBounds(wcx, tableY, wcz))
             world.SetVoxel(wcx, tableY, wcz, 9);
 
-        // ── Loot crates: 3 food (10), 2 ammo (14), 2 supply (15) ────
-        byte[] crateTypes = { 10, 10, 10, 14, 14, 15, 15 };
+        // ── Loot crates: 5 food (10), 3 ammo (14), 3 supply (15) ────
+        byte[] crateTypes = { 10, 10, 10, 10, 10, 14, 14, 14, 15, 15, 15 };
         foreach (byte ct in crateTypes)
         {
             int crx = rng.Next(4, sx - 4);

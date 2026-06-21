@@ -68,6 +68,14 @@ public class WaveSpawner
 
     void DespawnAll() => Active.Clear();
 
+    public (int shamblers, int runners, bool hasBoss) GetWavePreview(int night)
+    {
+        int total     = _baseCount + (night - 1) * 4;
+        int runners   = night >= 2 ? total / 3 : 0;
+        int shamblers = total - runners;
+        return (shamblers, runners, night >= 5);
+    }
+
     public void Update(float dt, Player player)
     {
         for (int i = Active.Count - 1; i >= 0; i--)
