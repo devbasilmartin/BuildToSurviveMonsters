@@ -19,16 +19,18 @@ public class Zombie
 
     public bool IsBoss     { get; private set; }
     public bool IsArmoured { get; private set; }
+    public bool IsCrawler  { get; private set; }
     public int  XPReward   { get; private set; }
     readonly VoxelWorld _world;
 
-    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false)
+    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false)
     {
         _world     = world;
         Position   = pos;
         _isRunner  = isRunner;
         IsBoss     = isBoss;
         IsArmoured = isArmoured;
+        IsCrawler  = isCrawler;
 
         if (isBoss)
         {
@@ -36,6 +38,14 @@ public class Zombie
             _speed    = 1.4f + 0.05f * (nightCount - 5);
             _damage   = 20f;
             XPReward  = 100;
+        }
+        else if (isCrawler)
+        {
+            float speedScale = 1f + 0.07f * (nightCount - 1);
+            HP = MaxHP = 25;
+            _speed    = 5.0f * speedScale;
+            _damage   = 6f;
+            XPReward  = 8;
         }
         else
         {
@@ -129,7 +139,16 @@ public class Zombie
         if (IsDead) return;
         byte flash = (byte)(int)(_hitFlash * 200);
 
-        if (IsBoss)
+        if (IsCrawler)
+        {
+            var cCol = new Color((byte)Math.Min(255, 90+flash), (byte)Math.Min(255, 45+flash), (byte)Math.Min(255, 10+flash), (byte)255);
+            DrawCube(Position + new Vector3(0, 0.2f, 0), 0.5f, 0.38f, 0.5f, cCol);  // flat body
+            DrawCube(Position + new Vector3(0, 0.57f, 0), 0.28f, 0.28f, 0.28f, cCol); // small head
+            float cf2 = (float)HP / MaxHP;
+            DrawCube(Position + new Vector3(0, 1.0f, 0), 0.5f, 0.06f, 0.05f, Color.DarkGray);
+            DrawCube(Position + new Vector3(-0.25f + 0.25f * cf2, 1.0f, 0), 0.5f * cf2, 0.06f, 0.06f, Color.Green);
+        }
+        else if (IsBoss)
         {
             // Boss: dark purple, 2x scale
             var bBody = new Color((byte)Math.Min(255, 80  + flash), (byte)Math.Min(255, 10 + flash), (byte)Math.Min(255, 100 + flash), (byte)255);

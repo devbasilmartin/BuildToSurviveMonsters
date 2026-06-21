@@ -40,6 +40,10 @@ public class Game
     float   _explosionTimer    = 0f;
     Vector3 _explosionPos;
     bool    _fogNight          = false;
+    float   _daySummaryTimer   = 0f;
+    int     _nightKills        = 0;
+    int     _xpBeforeNight     = 0;
+    bool    _lastNightCleared  = false;
     Vector3 _spawnPos;
 
     static readonly int[] LevelThresholds = { 50, 150, 300, 500, 750 };
@@ -101,11 +105,14 @@ public class Game
             _nightCleared    = false;
             _nightStartDelay = 2f;
             _fogNight        = _rng.Next(10) < 3; // 30% fog chance
+            _nightKills      = 0;
+            _xpBeforeNight   = _player.XP;
             if (_dnc.NightCount >= 5) _bossWarningTimer = 5f;
-            var (s, r, a, b) = _waves.GetWavePreview(_dnc.NightCount);
+            var (s, r, a, c, b) = _waves.GetWavePreview(_dnc.NightCount);
             _waveBannerMsg = $"Night {_dnc.NightCount}:  {s} zombies";
             if (r > 0) _waveBannerMsg += $"  +  {r} runners";
             if (a > 0) _waveBannerMsg += $"  +  {a} armoured";
+            if (c > 0) _waveBannerMsg += $"  +  {c} crawlers";
             if (b)     _waveBannerMsg += "  +  BOSS!";
             if (_fogNight) _waveBannerMsg += "   [FOG]";
             if (_rng.Next(5) == 0) // 20% double wave
@@ -115,7 +122,15 @@ public class Game
             }
             _waveBannerTimer = 4f;
         };
-        _dnc.OnDayStart += () => { _nightCleared = false; _fogNight = false; };
+        _dnc.OnDayStart += () => {
+            if (_dnc.NightCount > 0)
+            {
+                _lastNightCleared = _nightCleared;
+                _daySummaryTimer  = 6f;
+            }
+            _nightCleared = false;
+            _fogNight     = false;
+        };
 
         // Enemies
         _waves = new WaveSpawner(_world, _dnc);
@@ -265,6 +280,14 @@ public class Game
         // Wave preview banner timer
         if (_waveBannerTimer > 0) _waveBannerTimer -= dt;
 
+        // Day summary timer
+        if (_daySummaryTimer > 0)
+        {
+            _daySummaryTimer -= dt;
+            if (IsKeyPressed(KeyboardKey.Space) || IsKeyPressed(KeyboardKey.Enter))
+                _daySummaryTimer = 0f;
+        }
+
         // Passive healing from Healing Amulet
         if (_player.HealRate > 0 && _player.HP > 0 && _player.HP < _player.MaxHP)
         {
@@ -399,6 +422,7 @@ public class Game
     void AwardKill(Zombie z)
     {
         _killCount++;
+        _nightKills++;
         _player.Ammo += _rng.Next(1, 4);
         if (z.IsBoss)
         {
@@ -458,6 +482,11 @@ public class Game
                     {
                         hitBody = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 1.5f, 0)) < 1.0f;
                         hitHead = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 3.5f, 0)) < 0.55f;
+                    }
+                    else if (z.IsCrawler)
+                    {
+                        hitBody = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 0.2f, 0)) < 0.28f;
+                        hitHead = false; // crawlers have no separate head hitbox
                     }
                     else
                     {
@@ -618,6 +647,8 @@ public class Game
         _healAccum        = 0f;
         _explosionTimer   = 0f;
         _fogNight         = false;
+        _daySummaryTimer  = 0f;
+        _nightKills       = 0;
         Init();
         _gameOver = false;
     }
@@ -803,9 +834,10 @@ public class Game
 
         DrawHUD();
 
-        if (_craftingOpen) DrawCraftingUI();
-        if (_pauseOpen)    DrawPauseScreen();
-        if (_gameOver)     DrawGameOver();
+        if (_craftingOpen)            DrawCraftingUI();
+        if (_pauseOpen)               DrawPauseScreen();
+        if (_daySummaryTimer > 0)     DrawDaySummary();
+        if (_gameOver)                DrawGameOver();
 
         EndDrawing();
     }
@@ -1096,6 +1128,34 @@ public class Game
         }
     }
 
+    void DrawDaySummary()
+    {
+        int sw = GetScreenWidth(), sh = GetScreenHeight();
+        float fade = Math.Min(1f, _daySummaryTimer); // fade out in last second
+        byte  a    = (byte)(int)(fade * 200);
+
+        DrawRectangle(sw/2 - 220, sh/2 - 130, 440, 260,
+            new Color((byte)0,(byte)0,(byte)0,(byte)(a/2)));
+
+        string title = $"Night {_dnc.NightCount} — Survived!";
+        DrawText(title, sw/2 - MeasureText(title,32)/2, sh/2 - 110, 32,
+            new Color((byte)255,(byte)200,(byte)50,a));
+
+        int xpGained = _player.XP - _xpBeforeNight;
+        DrawText($"Kills: {_nightKills}", sw/2 - 80, sh/2 - 55, 22,
+            new Color((byte)255,(byte)255,(byte)255,a));
+        DrawText($"XP:  +{xpGained}", sw/2 - 80, sh/2 - 26, 22,
+            new Color((byte)100,(byte)220,(byte)100,a));
+
+        if (_lastNightCleared)
+            DrawText("WAVE CLEARED!", sw/2 - MeasureText("WAVE CLEARED!",20)/2, sh/2 + 8, 20,
+                new Color((byte)80,(byte)255,(byte)80,a));
+
+        string dismiss = "Space / Enter to continue";
+        DrawText(dismiss, sw/2 - MeasureText(dismiss,14)/2, sh/2 + 82, 14,
+            new Color((byte)120,(byte)120,(byte)120,a));
+    }
+
     void DrawPauseScreen()
     {
         int sw = GetScreenWidth(), sh = GetScreenHeight();
@@ -1202,6 +1262,7 @@ public class Game
             if (zdx < 0 || zdx >= MM_RANGE*2 || zdz < 0 || zdz >= MM_RANGE*2) continue;
             Color dot = z.IsBoss     ? Color.Magenta
                       : z.IsArmoured ? new Color((byte)160,(byte)165,(byte)180,(byte)255)
+                      : z.IsCrawler  ? new Color((byte)150,(byte)80,(byte)20,(byte)255)
                       : Color.Red;
             DrawRectangle(ox + zdx * MM_SCALE - 1, oy + zdz * MM_SCALE - 1, 3, 3, dot);
         }

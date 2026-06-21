@@ -6,6 +6,25 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 15 — Day Summary, Zombie Crawler  *(2026-06-21)*
+
+**Day Summary overlay**
+- Appears each dawn (after any real night) for 6 seconds; Space/Enter dismisses early
+- Shows: "Night N — Survived!", kills that night, XP earned, "WAVE CLEARED!" if applicable
+- Fades alpha in the last second; per-night kill counter resets at each night start
+- `_xpBeforeNight` snapshot taken at night start; XP delta computed at dawn
+- Timer and counter reset on R-to-restart
+
+**Zombie Crawler** (spawns night 4+, ~1/6 of shambler pool)
+- Stats: 25 HP, 5.0× speed scale (very fast), 6 damage — glass cannon
+- Visual: flat dark brown body low to the ground + tiny head cube
+- Bullet hitbox: tiny sphere at y+0.2, radius 0.28 — harder to shoot than shamblers
+- No head hitbox — only body; melee still works at normal range
+- 8 XP kill reward (less than shambler since they're plentiful and fast)
+- Shows dark orange-brown on minimap; included in wave preview banner
+
+---
+
 ## Sprint 14 — Sprint/Stamina, Double-Wave Night, Steel Sword  *(2026-06-21)*
 
 **Sprint / Stamina**
@@ -333,6 +352,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Zombie crawler: low-profile zombie with tiny body hitbox
-- [ ] Turret block: place and auto-shoots nearby zombies slowly
-- [ ] Day summary screen: brief pause at day start showing last night's stats
+- [ ] Turret block: auto-fires at nearby zombies every 2s
+- [ ] Hunger overeat: eating at full hunger grants temporary max-HP boost
+- [ ] Night N difficulty cap: zombie count caps at a max to prevent unwinnable waves
