@@ -17,18 +17,30 @@ public class Zombie
     float _hitFlash    = 0f;  // 0..1, set to 1 on hit, decays
     bool  _isRunner;
 
+    public bool IsBoss { get; private set; }
     readonly VoxelWorld _world;
 
-    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false)
+    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false)
     {
         _world    = world;
         Position  = pos;
         _isRunner = isRunner;
-        float scale = 1f + 0.1f * nightCount;
-        float speedScale = 1f + 0.07f * (nightCount - 1); // speed ramps each night
-        HP = MaxHP = (int)((isRunner ? 30 : 60) * scale);
-        _speed   = (isRunner ? 3.8f : 1.5f) * speedScale;
-        _damage  = (isRunner ? 8 : 10) * scale;
+        IsBoss    = isBoss;
+
+        if (isBoss)
+        {
+            HP = MaxHP = 600 + nightCount * 40;
+            _speed  = 1.4f + 0.05f * (nightCount - 5);
+            _damage = 20f;
+        }
+        else
+        {
+            float scale = 1f + 0.1f * nightCount;
+            float speedScale = 1f + 0.07f * (nightCount - 1);
+            HP = MaxHP = (int)((isRunner ? 30 : 60) * scale);
+            _speed  = (isRunner ? 3.8f : 1.5f) * speedScale;
+            _damage = (isRunner ? 8 : 10) * scale;
+        }
     }
 
     public void Update(float dt, Player player)
@@ -76,19 +88,32 @@ public class Zombie
     {
         if (IsDead) return;
         byte flash = (byte)(int)(_hitFlash * 200);
-        // Runners are olive-green; shamblers are dark red
-        var bodyColor = _isRunner
-            ? new Color((byte)Math.Min(255, 80  + flash), (byte)Math.Min(255, 120 + flash), (byte)Math.Min(255, 30  + flash), (byte)255)
-            : new Color((byte)Math.Min(255, 180 + flash), (byte)Math.Min(255, 30  + flash), (byte)Math.Min(255, 30  + flash), (byte)255);
-        var headColor = _isRunner
-            ? new Color((byte)Math.Min(255, 100 + flash), (byte)Math.Min(255, 140 + flash), (byte)Math.Min(255, 60  + flash), (byte)255)
-            : new Color((byte)Math.Min(255, 200 + flash/2), (byte)Math.Min(255, 150 + flash), (byte)Math.Min(255, 100 + flash), (byte)255);
-        DrawCube(Position + new Vector3(0, 0.9f, 0),  0.6f,  1.5f, 0.6f,  bodyColor);
-        DrawCube(Position + new Vector3(0, 1.85f, 0), 0.45f, 0.45f, 0.45f, headColor);
 
-        // HP bar above head
-        float hpFrac = (float)HP / MaxHP;
-        DrawCube(Position + new Vector3(0, 2.6f, 0), 0.6f, 0.08f, 0.06f, Color.DarkGray);
-        DrawCube(Position + new Vector3(-0.3f + 0.3f * hpFrac, 2.6f, 0), 0.6f * hpFrac, 0.08f, 0.07f, Color.Green);
+        if (IsBoss)
+        {
+            // Boss: dark purple, 2x scale
+            var bBody = new Color((byte)Math.Min(255, 80  + flash), (byte)Math.Min(255, 10 + flash), (byte)Math.Min(255, 100 + flash), (byte)255);
+            var bHead = new Color((byte)Math.Min(255, 100 + flash), (byte)Math.Min(255, 20 + flash), (byte)Math.Min(255, 120 + flash), (byte)255);
+            DrawCube(Position + new Vector3(0, 1.5f, 0),  1.2f, 3.0f, 1.2f, bBody);
+            DrawCube(Position + new Vector3(0, 3.5f, 0),  0.9f, 0.9f, 0.9f, bHead);
+            float hpF = (float)HP / MaxHP;
+            DrawCube(Position + new Vector3(0, 4.6f, 0),  1.2f, 0.12f, 0.1f, Color.DarkGray);
+            DrawCube(Position + new Vector3(-0.6f + 0.6f * hpF, 4.6f, 0), 1.2f * hpF, 0.12f, 0.11f, Color.Red);
+        }
+        else
+        {
+            // Runners are olive-green; shamblers are dark red
+            var bodyColor = _isRunner
+                ? new Color((byte)Math.Min(255, 80  + flash), (byte)Math.Min(255, 120 + flash), (byte)Math.Min(255, 30  + flash), (byte)255)
+                : new Color((byte)Math.Min(255, 180 + flash), (byte)Math.Min(255, 30  + flash), (byte)Math.Min(255, 30  + flash), (byte)255);
+            var headColor = _isRunner
+                ? new Color((byte)Math.Min(255, 100 + flash), (byte)Math.Min(255, 140 + flash), (byte)Math.Min(255, 60  + flash), (byte)255)
+                : new Color((byte)Math.Min(255, 200 + flash/2), (byte)Math.Min(255, 150 + flash), (byte)Math.Min(255, 100 + flash), (byte)255);
+            DrawCube(Position + new Vector3(0, 0.9f, 0),  0.6f,  1.5f, 0.6f,  bodyColor);
+            DrawCube(Position + new Vector3(0, 1.85f, 0), 0.45f, 0.45f, 0.45f, headColor);
+            float hpFrac = (float)HP / MaxHP;
+            DrawCube(Position + new Vector3(0, 2.6f, 0), 0.6f, 0.08f, 0.06f, Color.DarkGray);
+            DrawCube(Position + new Vector3(-0.3f + 0.3f * hpFrac, 2.6f, 0), 0.6f * hpFrac, 0.08f, 0.07f, Color.Green);
+        }
     }
 }

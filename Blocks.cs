@@ -28,8 +28,11 @@ public static class Blocks
         new("Food",          new Color(200,  80,  50, 255),   0, false, 0, 0, 0),  // 11 inventory only
         new("IronWall",      new Color(170, 175, 185, 255),  40, true,  8, 1, 2),  // 12 buildable, durable
         new("Campfire",      new Color(200,  80,  20, 255),   3, true,  3, 1, 2),  // 13 buildable, drops wood
+        new("AmmoCrate",     new Color(200,  50,  50, 255), 999, false, 0, 0, 0),  // 14 ammo loot crate
+        new("SupplyCrate",   new Color( 50, 180, 180, 255), 999, false, 0, 0, 0),  // 15 supply loot crate
+        new("Torch",         new Color(255, 200,  40, 255),   1, true,  3, 1, 1),  // 16 cosmetic, non-solid
     };
 
     public static BlockDef Get(byte id) => id < All.Length ? All[id] : All[0];
-    public static bool IsSolid(byte id) => id != 0 && id != 8 && id != 11;
+    public static bool IsSolid(byte id) => id != 0 && id != 8 && id != 11 && id != 16;
 }

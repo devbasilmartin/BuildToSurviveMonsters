@@ -30,6 +30,22 @@ public class WaveSpawner
 
         for (int i = 0; i < shamblers; i++) SpawnOne(night, isRunner: false);
         for (int i = 0; i < runners;   i++) SpawnOne(night, isRunner: true);
+
+        // Boss zombie every night from night 5 onward
+        if (night >= 5) SpawnBoss(night);
+    }
+
+    void SpawnBoss(int night)
+    {
+        float angle = (float)(_rng.NextDouble() * Math.PI * 2);
+        Vector3 pos = new(
+            _world.SizeX / 2f + MathF.Cos(angle) * SpawnRadius,
+            20f,
+            _world.SizeZ / 2f + MathF.Sin(angle) * SpawnRadius);
+        int ix = (int)pos.X, iz = (int)pos.Z;
+        for (int y = _world.SizeY - 1; y >= 0; y--)
+            if (_world.IsSolid(ix, y, iz)) { pos.Y = y + 1f; break; }
+        Active.Add(new Zombie(_world, pos, night, isRunner: false, isBoss: true));
     }
 
     void SpawnOne(int night, bool isRunner)

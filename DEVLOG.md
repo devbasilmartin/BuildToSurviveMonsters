@@ -6,6 +6,28 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 6 — Crate Variety, Torch, Zombie Boss  *(2026-06-21)*
+
+**Loot crate variety**
+- 3 types now spawn (7 total per world): Food (yellow, 10), Ammo (red, 14), Supply (teal, 15)
+- Food Crate: 4–8 food; Ammo Crate: 10–20 ammo; Supply Crate: 2–4 food + 5–10 ammo + 1–3 iron
+- Context hint identifies crate type and previews drops before you open it
+- `FindNearbyCrate` now checks all 3 blockIds (10/14/15)
+
+**Torch block** (blockId 16)
+- Non-solid (walk through it like leaves); costs 1 wood from hotbar slot 5
+- Bobbing yellow glow sphere drawn above each nearby torch in 3D (drawn in 8-block radius)
+- Use torches to mark your base or light paths between your campfire and crafting table
+
+**Zombie Boss** (spawns night 5+, 1 per wave)
+- 600 HP base (+40 per night beyond 5); 1.4 speed; 20 melee damage
+- Visual: 2× height/width, dark purple colour with large red HP bar above
+- Bullet hitboxes scale up: body sphere at y+1.5 r=1.0, head at y+3.5 r=0.55
+- Kill rewards: +1–3 ammo (normal) + 5 iron + 5 bonus ammo
+- Kill logic refactored into `AwardKill(Zombie z)` shared by gun and melee paths
+
+---
+
 ## Sprint 5 — Campfire, Night Clear Bonus, Bandage & Quiver  *(2026-06-21)*
 
 **Campfire block** (blockId 13)
@@ -128,10 +150,10 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ## Backlog
 
-- [ ] Loot crate variety: weapon/ammo/food crates with distinct colors and drop tables
 - [ ] Player respawn at spawn with 50 HP on death (instead of hard game-over)
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Minimap (top-down 2D overlay, updates as player explores)
-- [ ] Torch block: craft from 1 wood, places a light-colored block for base marking
-- [ ] Zombie boss: giant zombie spawns on night 5, more HP, drops guaranteed iron
+- [ ] Boss warning banner when boss zombie spawns night 5+
+- [ ] Chest block: placeable storage, right-click deposits/withdraws items
+- [ ] Spike trap: placed on ground, damages zombies that walk over it

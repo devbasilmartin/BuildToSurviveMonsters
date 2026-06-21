@@ -82,14 +82,15 @@ public static class WorldGenerator
         if (world.InBounds(wcx, tableY, wcz))
             world.SetVoxel(wcx, tableY, wcz, 9);
 
-        // ── Loot crates (7) spread around map ────────────────────────
-        for (int i = 0; i < 7; i++)
+        // ── Loot crates: 3 food (10), 2 ammo (14), 2 supply (15) ────
+        byte[] crateTypes = { 10, 10, 10, 14, 14, 15, 15 };
+        foreach (byte ct in crateTypes)
         {
             int crx = rng.Next(4, sx - 4);
             int crz = rng.Next(4, sz - 4);
             int cry = SurfaceY(world, crx, crz) + 1;
             if (world.InBounds(crx, cry, crz))
-                world.SetVoxel(crx, cry, crz, 10);
+                world.SetVoxel(crx, cry, crz, ct);
         }
     }
 

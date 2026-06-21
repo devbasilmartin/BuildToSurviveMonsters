@@ -214,8 +214,20 @@ public class Game
             {
                 bool wasDead = z.IsDead;
                 z.TakeDamage(dmg);
-                if (z.IsDead && !wasDead) { _player.Ammo += _rng.Next(1, 4); _killCount++; }
+                if (z.IsDead && !wasDead) AwardKill(z);
             }
+        }
+    }
+
+    void AwardKill(Zombie z)
+    {
+        _killCount++;
+        _player.Ammo += _rng.Next(1, 4);
+        if (z.IsBoss)
+        {
+            _player.Ammo += 5;
+            _player.Inventory.TryGetValue(8, out int iron);
+            _player.Inventory[8] = iron + 5;
         }
     }
 
@@ -234,19 +246,28 @@ public class Game
             var vox = VoxelWorld.WorldToVoxel(b.Pos);
             if (_world.IsSolid(vox.X, vox.Y, vox.Z)) dead = true;
 
-            // Hit zombie? Check body + head as separate spheres
+            // Hit zombie? Check body + head as separate spheres (boss has larger spheres)
             if (!dead)
             {
                 foreach (var z in _waves.Active)
                 {
                     if (z.IsDead) continue;
-                    bool hitBody = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 0.75f, 0)) < 0.55f;
-                    bool hitHead = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 1.85f, 0)) < 0.3f;
+                    bool hitBody, hitHead;
+                    if (z.IsBoss)
+                    {
+                        hitBody = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 1.5f, 0)) < 1.0f;
+                        hitHead = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 3.5f, 0)) < 0.55f;
+                    }
+                    else
+                    {
+                        hitBody = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 0.75f, 0)) < 0.55f;
+                        hitHead = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 1.85f, 0)) < 0.3f;
+                    }
                     if (hitBody || hitHead)
                     {
                         bool wasDead = z.IsDead;
                         z.TakeDamage(GunDamage);
-                        if (z.IsDead && !wasDead) { _player.Ammo += _rng.Next(1, 4); _killCount++; }
+                        if (z.IsDead && !wasDead) { AwardKill(z); }
                         dead = true;
                         break;
                     }
@@ -276,7 +297,8 @@ public class Game
         for (int dz = -2; dz <= 2; dz++)
         {
             int cx = v.X+dx, cy = v.Y+dy, cz = v.Z+dz;
-            if (_world.GetVoxel(cx, cy, cz) == 10)
+            byte b = _world.GetVoxel(cx, cy, cz);
+            if (b == 10 || b == 14 || b == 15)
                 return new Vector3Int(cx, cy, cz);
         }
         return null;
@@ -294,12 +316,25 @@ public class Game
 
     void OpenCrate(Vector3Int pos)
     {
+        byte crateType = _world.GetVoxel(pos.X, pos.Y, pos.Z);
         _world.SetVoxel(pos.X, pos.Y, pos.Z, 0);
-        int food = _rng.Next(2, 6);
-        int ammo = _rng.Next(5, 11);
         _player.Inventory.TryGetValue(11, out int curFood);
-        _player.Inventory[11] = curFood + food;
-        _player.Ammo += ammo;
+        _player.Inventory.TryGetValue(8,  out int curIron);
+
+        switch (crateType)
+        {
+            case 10: // Food Crate
+                _player.Inventory[11] = curFood + _rng.Next(4, 9);
+                break;
+            case 14: // Ammo Crate
+                _player.Ammo += _rng.Next(10, 21);
+                break;
+            case 15: // Supply Crate
+                _player.Inventory[11] = curFood + _rng.Next(2, 5);
+                _player.Ammo += _rng.Next(5, 11);
+                _player.Inventory[8] = curIron + _rng.Next(1, 4);
+                break;
+        }
     }
 
     void TryCraft(int index)
@@ -402,8 +437,9 @@ public class Game
         foreach (var b in _bullets)
             DrawSphere(b.Pos, 0.07f, new Color((byte)255,(byte)220,(byte)50,(byte)255));
 
-        // Campfire flames
+        // Campfire flames + torch glow
         DrawCampfireFlames();
+        DrawTorchGlow();
 
         // Viewmodel
         {
@@ -617,6 +653,11 @@ public class Game
                 DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)180,(byte)60,(byte)15,(byte)255));
                 DrawText("FIRE", bx+4, hotbarY+14, 11, Color.White);
             }
+            else if (slot.blockId == 16)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)100,(byte)70,(byte)10,(byte)255));
+                DrawText("TRCH", bx+2, hotbarY+14, 10, new Color((byte)255,(byte)210,(byte)60,(byte)255));
+            }
             else if (slot.blockId != 0)
             {
                 var col = Blocks.Get(slot.blockId).Color;
@@ -628,9 +669,20 @@ public class Game
 
         // Context hint or controls
         bool nc  = NearCraftingTable();
-        bool ncr = FindNearbyCrate().HasValue;
+        var  nearCratePos = FindNearbyCrate();
+        bool ncr = nearCratePos.HasValue;
         bool ncf = NearCampfire();
-        string hint = ncr ? "E: Open Loot Crate"
+
+        string crateHint = "E: Open Loot Crate";
+        if (nearCratePos.HasValue)
+        {
+            byte ct = _world.GetVoxel(nearCratePos.Value.X, nearCratePos.Value.Y, nearCratePos.Value.Z);
+            crateHint = ct == 14 ? "E: Open Ammo Crate  (10-20 ammo)"
+                      : ct == 15 ? "E: Open Supply Crate  (food + ammo + iron)"
+                      : "E: Open Food Crate  (4-8 food)";
+        }
+
+        string hint = ncr ? crateHint
                     : nc  ? "E: Open Crafting Table"
                     : ncf ? "CAMPFIRE: Hunger + Thirst restoring"
                     : "WASD/Arrows move  LClick shoot/mine/swing  RClick build  F eat food  Space jump";
@@ -660,6 +712,22 @@ public class Game
         DrawText(msg, sw/2 - MeasureText(msg, 60)/2, sh/2 - 50, 60, Color.Red);
         string sub = $"Survived {_dnc.NightCount} night(s)  |  Kills: {_killCount}  |  Press R to restart";
         DrawText(sub, sw/2 - MeasureText(sub, 24)/2, sh/2 + 30, 24, Color.White);
+    }
+
+    void DrawTorchGlow()
+    {
+        var v = VoxelWorld.WorldToVoxel(_player.EyePos);
+        float t = (float)GetTime();
+        for (int dx = -8; dx <= 8; dx++)
+        for (int dy = -3; dy <= 6; dy++)
+        for (int dz = -8; dz <= 8; dz++)
+        {
+            int cx = v.X+dx, cy = v.Y+dy, cz = v.Z+dz;
+            if (_world.GetVoxel(cx, cy, cz) != 16) continue;
+            float bob = MathF.Sin(t * 3f + cx * 0.9f + cz * 1.1f) * 0.03f;
+            DrawSphere(new Vector3(cx+0.5f, cy+1.1f+bob, cz+0.5f), 0.18f,
+                new Color((byte)255,(byte)210,(byte)60,(byte)200));
+        }
     }
 
     void DrawCampfireFlames()
