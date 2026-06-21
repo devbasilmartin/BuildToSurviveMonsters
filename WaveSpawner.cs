@@ -40,6 +40,21 @@ public class WaveSpawner
 
         if (night >= 5) SpawnBoss(night);
         if (night >= 6) SpawnShaman(night);
+        if (night >= 8 && (night >= 10 || _rng.Next(3) == 0)) SpawnGigant(night);
+    }
+
+    void SpawnGigant(int night)
+    {
+        float angle = (float)(_rng.NextDouble() * Math.PI * 2);
+        Vector3 pos = new(
+            _world.SizeX / 2f + MathF.Cos(angle) * (SpawnRadius + 15f),
+            20f,
+            _world.SizeZ / 2f + MathF.Sin(angle) * (SpawnRadius + 15f));
+        int ix = (int)Math.Clamp(pos.X, 1, _world.SizeX-2);
+        int iz = (int)Math.Clamp(pos.Z, 1, _world.SizeZ-2);
+        for (int y = _world.SizeY - 1; y >= 0; y--)
+            if (_world.IsSolid(ix, y, iz)) { pos.Y = y + 1f; break; }
+        Active.Add(new Zombie(_world, pos, night, isGigant: true));
     }
 
     void SpawnShaman(int night)

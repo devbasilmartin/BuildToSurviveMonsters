@@ -22,11 +22,12 @@ public class Zombie
     public bool IsCrawler  { get; private set; }
     public bool IsShaman   { get; private set; }
     public bool IsPoison   { get; private set; }
+    public bool IsGigant   { get; private set; }
     public int  XPReward   { get; private set; }
-    public float SpeedMult = 1f;   // set externally for berserk night
+    public float SpeedMult = 1f;
     readonly VoxelWorld _world;
 
-    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false, bool isShaman = false, bool isPoison = false)
+    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false, bool isShaman = false, bool isPoison = false, bool isGigant = false)
     {
         _world     = world;
         Position   = pos;
@@ -36,6 +37,7 @@ public class Zombie
         IsCrawler  = isCrawler;
         IsShaman   = isShaman;
         IsPoison   = isPoison;
+        IsGigant   = isGigant;
 
         if (isBoss)
         {
@@ -43,6 +45,14 @@ public class Zombie
             _speed    = 1.4f + 0.05f * (nightCount - 5);
             _damage   = 20f;
             XPReward  = 100;
+        }
+        else if (isGigant)
+        {
+            HP = MaxHP = 2000 + nightCount * 100;
+            _speed      = 0.5f * (1f + 0.04f * (nightCount - 1));
+            _damage     = 40f;
+            _attackRate = 0.8f; // slow swing
+            XPReward    = 300;
         }
         else if (isPoison)
         {
@@ -164,7 +174,16 @@ public class Zombie
         if (IsDead) return;
         byte flash = (byte)(int)(_hitFlash * 200);
 
-        if (IsPoison)
+        if (IsGigant)
+        {
+            var gc = new Color((byte)Math.Min(255,25+flash),(byte)Math.Min(255,5+flash),(byte)Math.Min(255,5+flash),(byte)255);
+            DrawCube(Position + new Vector3(0, 3.0f, 0), 3.0f, 6.0f, 3.0f, gc);  // massive body
+            DrawCube(Position + new Vector3(0, 6.9f, 0), 2.2f, 2.2f, 2.2f, gc);  // head
+            float gf = (float)HP / MaxHP;
+            DrawCube(Position + new Vector3(0, 9.8f, 0), 3.0f, 0.18f, 0.16f, Color.DarkGray);
+            DrawCube(Position + new Vector3(-1.5f+1.5f*gf, 9.8f, 0), 3.0f*gf, 0.18f, 0.18f, Color.Red);
+        }
+        else if (IsPoison)
         {
             var pc = new Color((byte)Math.Min(255, 40+flash), (byte)Math.Min(255, 200+flash), (byte)Math.Min(255, 60+flash), (byte)255);
             DrawCube(Position + new Vector3(0, 0.9f, 0),  0.6f, 1.5f, 0.6f, pc);

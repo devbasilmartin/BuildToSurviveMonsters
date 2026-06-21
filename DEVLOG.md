@@ -6,6 +6,28 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 23 — Zombie Gigant, Screen Shake, Level Cap x8  *(2026-06-21)*
+
+**Zombie Gigant** (night 8+; guaranteed from night 10, ~33% chance 8-9)
+- Spawns 15 units farther out than other zombies
+- 3×6×3 unit body + 2.2m head; near-black with red hit flash; HP bar 9.8m up
+- 2000 HP (+100/night), speed 0.5, 40 melee damage, 0.8s attack rate
+- Drops: +10 ammo, +10 iron, +10 food on kill; 300 XP
+- Bullet hitboxes: body y+3.0 r=2.5, head y+6.9 r=1.0 (much larger than normal)
+- "GIGANT!" appended to wave preview banner; large red 6×6 square on minimap
+
+**Screen shake** (x5+ melee combo)
+- Sinusoidal camera offset: `sin(t*1.7) × mag` horizontally, damped vertically
+- Intensity scales with combo above 5; decays over 0.2 seconds
+- Applied directly to camera in Draw(); decays timer in Update()
+
+**Level cap extended to 8** (was 5)
+- New XP thresholds: 1100, 1500, 2000 for levels 6, 7, 8
+- Same alternating pattern: odd=+15 MaxHP, even=+0.4 Speed
+- XP bar now shows "Lv.MAX" only at level 8; players can keep grinding XP
+
+---
+
 ## Sprint 22 — Antidote, Bone Broth, Blackout Night, Bug Fixes  *(2026-06-21)*
 
 **New crafting recipes** (now 21 total)
@@ -514,6 +536,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Zombie gigant (ultra-rare): 5x size, 2000 HP, boss-tier loot
-- [ ] Player level cap increase (beyond 5 — maybe a "prestige" mechanic)
-- [ ] Combo visual feedback: screen shake on x5+ combo
+- [ ] "Gigant Slayer" achievement: kill a Gigant zombie
+- [ ] Prestige system: reset at level 8 for permanent passive bonus
+- [ ] More world features: ruins/structure spawn, ore cave underground

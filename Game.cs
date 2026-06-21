@@ -30,6 +30,8 @@ public class Game
     bool    _rainDaySurvived       = false;
     bool    _berserkNight          = false;
     bool    _blackoutNight         = false;
+    float   _shakeTimer            = 0f;
+    float   _shakeIntensity        = 0f;
     int     _meleeCombo            = 0;
     int     _maxComboNight         = 0;
     float   _meleeComboTimer       = 0f;
@@ -76,7 +78,7 @@ public class Game
     bool    _lastNightCleared  = false;
     Vector3 _spawnPos;
 
-    static readonly int[] LevelThresholds = { 50, 150, 300, 500, 750 };
+    static readonly int[] LevelThresholds = { 50, 150, 300, 500, 750, 1100, 1500, 2000 };
 
     // Minimap cache
     const int MM_RANGE = 20;
@@ -184,6 +186,9 @@ public class Game
                 foreach (var z in _waves.Active) z.SpeedMult = 2f;
                 _waveBannerMsg += "   [BERSERK!]";
             }
+            // Check for gigant in wave
+            foreach (var z in _waves.Active)
+                if (z.IsGigant) { _waveBannerMsg += "   [GIGANT!]"; break; }
             _waveBannerTimer = 4f;
         };
         _dnc.OnDayStart += () => {
@@ -267,6 +272,8 @@ public class Game
 
         // Melee combo decay
         if (_meleeComboTimer > 0) { _meleeComboTimer -= dt; if (_meleeComboTimer <= 0) _meleeCombo = 0; }
+        // Shake decay
+        if (_shakeTimer > 0) _shakeTimer -= dt;
 
         // Lightning strikes during storms
         UpdateLightning(dt);
@@ -595,6 +602,11 @@ public class Game
                 _meleeCombo++;
                 _meleeComboTimer = 1.5f;
                 _maxComboNight   = Math.Max(_maxComboNight, _meleeCombo);
+                if (_meleeCombo >= 5) // screen shake on x5+ combo
+                {
+                    _shakeTimer     = 0.2f;
+                    _shakeIntensity = Math.Min(2f, (_meleeCombo - 4) * 0.4f);
+                }
             }
         }
     }
@@ -606,7 +618,13 @@ public class Game
         _player.Ammo += _rng.Next(1, 4);
         if (z.IsBoss)        _bossKilled    = true;
         if (fromMelee)       _meleeKillMade = true;
-        if (z.IsBoss)
+        if (z.IsGigant)
+        {
+            _player.Ammo += 10;
+            _player.Inventory.TryGetValue(8,  out int gi); _player.Inventory[8]  = gi + 10;
+            _player.Inventory.TryGetValue(11, out int gf); _player.Inventory[11] = gf + 10;
+        }
+        else if (z.IsBoss)
         {
             _player.Ammo += 5;
             _player.Inventory.TryGetValue(8, out int iron);
@@ -703,7 +721,12 @@ public class Game
                 {
                     if (z.IsDead) continue;
                     bool hitBody, hitHead;
-                    if (z.IsBoss)
+                    if (z.IsGigant)
+                    {
+                        hitBody = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 3.0f, 0)) < 2.5f;
+                        hitHead = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 6.9f, 0)) < 1.0f;
+                    }
+                    else if (z.IsBoss)
                     {
                         hitBody = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 1.5f, 0)) < 1.0f;
                         hitHead = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 3.5f, 0)) < 0.55f;
@@ -960,6 +983,7 @@ public class Game
         _rainDaySurvived          = false;
         _berserkNight             = false;
         _blackoutNight            = false;
+        _shakeTimer               = 0f;
         _meleeCombo               = 0;
         _maxComboNight            = 0;
         _meleeComboTimer          = 0f;
@@ -996,6 +1020,18 @@ public class Game
         BeginDrawing();
         ClearBackground(sky);
 
+        // Camera with shake
+        {
+            Vector3 shOff = Vector3.Zero;
+            if (_shakeTimer > 0)
+            {
+                float mag = _shakeTimer * _shakeIntensity * 0.04f;
+                float t   = (float)GetTime() * 28f;
+                shOff = new Vector3(MathF.Sin(t * 1.7f) * mag, MathF.Sin(t * 2.4f) * mag * 0.6f, 0);
+            }
+            _camera.Position = _player.EyePos + shOff;
+            _camera.Target   = _player.EyePos + _player.Forward + shOff;
+        }
         BeginMode3D(_camera);
 
         float drawDist = _fogNight ? 15f : _blackoutNight ? 12f : 40f;
@@ -1739,7 +1775,11 @@ public class Game
                       : z.IsCrawler  ? new Color((byte)150,(byte)80,(byte)20,(byte)255)
                       : z.IsPoison   ? new Color((byte)40,(byte)200,(byte)60,(byte)255)
                       : Color.Red;
-            DrawRectangle(ox + zdx * MM_SCALE - 1, oy + zdz * MM_SCALE - 1, 3, 3, dot);
+            if (z.IsGigant)
+                DrawRectangle(ox + zdx * MM_SCALE - 3, oy + zdz * MM_SCALE - 3, MM_SCALE + 4, MM_SCALE + 4,
+                    new Color((byte)255,(byte)20,(byte)0,(byte)255));
+            else
+                DrawRectangle(ox + zdx * MM_SCALE - 1, oy + zdz * MM_SCALE - 1, 3, 3, dot);
         }
 
         // Player dot (always centre, white)
