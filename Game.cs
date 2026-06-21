@@ -14,11 +14,24 @@ public class Game
     const int   GunDamage = 50;
     const float GunRange  = 50f;
 
-    bool  _gameOver = false;
-    float _gunRecoil = 0f;
+    bool  _gameOver      = false;
+    bool  _craftingOpen  = false;
+    float _gunRecoil     = 0f;
 
     struct Bullet { public Vector3 Pos; public Vector3 Dir; public float Life; }
     readonly System.Collections.Generic.List<Bullet> _bullets = new();
+
+    // ── Crafting recipes ─────────────────────────────────────────────
+    // OutputId -1 = ammo (special). Cost = (blockId, count) pairs.
+    record struct Ingredient(byte Id, int Amt);
+    record struct Recipe(string Name, int OutputId, int OutputCount, Ingredient[] Cost);
+
+    static readonly Recipe[] Recipes =
+    {
+        new("Ammo ×10",       -1, 10, new[]{ new Ingredient(3,1), new Ingredient(8,2) }),  // 1 wood + 2 iron
+        new("Plank Wall ×2",   4,  2, new[]{ new Ingredient(3,2) }),                        // 2 wood
+        new("Stone Wall ×2",   5,  2, new[]{ new Ingredient(2,2) }),                        // 2 stone
+    };
 
     public void Init()
     {
@@ -65,6 +78,21 @@ public class Game
 
         _waves.Update(dt, _player);
 
+        // Crafting table: E opens/closes when nearby
+        bool nearTable = NearCraftingTable();
+        if (IsKeyPressed(KeyboardKey.E) && (nearTable || _craftingOpen))
+            _craftingOpen = !_craftingOpen;
+        if (IsKeyPressed(KeyboardKey.Escape))
+            _craftingOpen = false;
+
+        // Craft on number keys when menu is open
+        if (_craftingOpen)
+        {
+            for (int i = 0; i < Recipes.Length; i++)
+                if (IsKeyPressed(KeyboardKey.One + i)) TryCraft(i);
+            return; // block everything else while menu is open
+        }
+
         // Left-click shoots when gun is selected, mines otherwise (handled in Player)
         if (_player.IsGunSelected && IsMouseButtonPressed(MouseButton.Left)) Shoot();
 
@@ -109,13 +137,15 @@ public class Game
             var vox = VoxelWorld.WorldToVoxel(b.Pos);
             if (_world.IsSolid(vox.X, vox.Y, vox.Z)) dead = true;
 
-            // Hit zombie?
+            // Hit zombie? Check body + head as separate spheres
             if (!dead)
             {
                 foreach (var z in _waves.Active)
                 {
                     if (z.IsDead) continue;
-                    if (Vector3.Distance(b.Pos, z.Position + new Vector3(0, 0.9f, 0)) < 0.9f)
+                    bool hitBody = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 0.75f, 0)) < 0.55f;
+                    bool hitHead = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 1.85f, 0)) < 0.3f;
+                    if (hitBody || hitHead)
                     {
                         z.TakeDamage(GunDamage);
                         dead = true;
@@ -129,8 +159,39 @@ public class Game
         }
     }
 
+    bool NearCraftingTable()
+    {
+        var v = VoxelWorld.WorldToVoxel(_player.Position);
+        for (int dx = -3; dx <= 3; dx++)
+        for (int dy = -1; dy <= 3; dy++)
+        for (int dz = -3; dz <= 3; dz++)
+            if (_world.GetVoxel(v.X+dx, v.Y+dy, v.Z+dz) == 9) return true;
+        return false;
+    }
+
+    void TryCraft(int index)
+    {
+        var r = Recipes[index];
+        foreach (var ing in r.Cost)
+        {
+            _player.Inventory.TryGetValue(ing.Id, out int have);
+            if (have < ing.Amt) return;
+        }
+        foreach (var ing in r.Cost)
+            _player.Inventory[ing.Id] -= ing.Amt;
+
+        if (r.OutputId == -1)
+            _player.Ammo += r.OutputCount;
+        else
+        {
+            _player.Inventory.TryGetValue((byte)r.OutputId, out int cur);
+            _player.Inventory[(byte)r.OutputId] = cur + r.OutputCount;
+        }
+    }
+
     void Restart()
     {
+        _craftingOpen = false;
         Init();
         _gameOver = false;
     }
@@ -216,7 +277,8 @@ public class Game
 
         DrawHUD();
 
-        if (_gameOver) DrawGameOver();
+        if (_craftingOpen) DrawCraftingUI();
+        if (_gameOver)     DrawGameOver();
 
         EndDrawing();
     }
@@ -292,7 +354,8 @@ public class Game
         }
 
         // Controls reminder
-        DrawText("WASD/Arrows move  Mouse look  1=Gun: LClick shoot  2-9=Blocks: LClick mine  RClick build  F fast-fwd", 10, sh - 18, 12, Color.Gray);
+        string hint = NearCraftingTable() ? "E: Open Crafting Table" : "WASD move  Mouse look  1=Gun LClick shoot  2-9 LClick mine  RClick build  F fast-fwd";
+        DrawText(hint, 10, sh - 18, 12, NearCraftingTable() ? Color.Yellow : Color.Gray);
     }
 
     void DrawGameOver()
@@ -303,6 +366,60 @@ public class Game
         DrawText(msg, sw/2 - MeasureText(msg, 60)/2, sh/2 - 50, 60, Color.Red);
         string sub = $"Survived {_dnc.NightCount} night(s)    Press R to restart";
         DrawText(sub, sw/2 - MeasureText(sub, 24)/2, sh/2 + 30, 24, Color.White);
+    }
+
+    void DrawCraftingUI()
+    {
+        int sw = GetScreenWidth(), sh = GetScreenHeight();
+        int pw = 420, ph = 80 + Recipes.Length * 64;
+        int px = sw/2 - pw/2, py = sh/2 - ph/2;
+
+        DrawRectangle(px, py, pw, ph, new Color((byte)20,(byte)15,(byte)10,(byte)230));
+        DrawRectangleLines(px, py, pw, ph, new Color((byte)160,(byte)100,(byte)40,(byte)255));
+        DrawText("CRAFTING TABLE", px+pw/2 - MeasureText("CRAFTING TABLE",20)/2, py+12, 20,
+            new Color((byte)220,(byte)160,(byte)60,(byte)255));
+        DrawLine(px+10, py+38, px+pw-10, py+38, new Color((byte)100,(byte)70,(byte)30,(byte)255));
+
+        for (int i = 0; i < Recipes.Length; i++)
+        {
+            var r   = Recipes[i];
+            int ry  = py + 48 + i * 64;
+            bool can = CanAfford(r);
+
+            Color nameCol = can ? Color.White : Color.Gray;
+            DrawText($"[{i+1}]  {r.Name}", px+16, ry, 18, nameCol);
+
+            string costStr = CostString(r);
+            Color costCol  = can
+                ? new Color((byte)120,(byte)220,(byte)120,(byte)255)
+                : new Color((byte)200,(byte)80,(byte)80,(byte)255);
+            DrawText(costStr, px+32, ry+22, 14, costCol);
+        }
+
+        DrawText("ESC to close", px+pw/2 - MeasureText("ESC to close",13)/2, py+ph-22, 13, Color.DarkGray);
+    }
+
+    bool CanAfford(Recipe r)
+    {
+        foreach (var ing in r.Cost)
+        {
+            _player.Inventory.TryGetValue(ing.Id, out int have);
+            if (have < ing.Amt) return false;
+        }
+        return true;
+    }
+
+    string CostString(Recipe r)
+    {
+        var sb = new System.Text.StringBuilder("Costs: ");
+        for (int i = 0; i < r.Cost.Length; i++)
+        {
+            var ing = r.Cost[i];
+            _player.Inventory.TryGetValue(ing.Id, out int have);
+            sb.Append($"{have}/{ing.Amt} {Blocks.Get(ing.Id).Name}");
+            if (i < r.Cost.Length - 1) sb.Append("  +  ");
+        }
+        return sb.ToString();
     }
 
     static string TimeStr(float secs)

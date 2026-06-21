@@ -45,7 +45,8 @@ public class Player
         _world   = world;
         Position = startPos;
 
-        Inventory[2] = 10; // 10 stone to start
+        Inventory[2] = 10; // stone
+        Inventory[3] = 10; // wood
         Ammo = 30;
         HotbarBlocks[0] = (255, 0); // slot 0 = gun
         HotbarBlocks[1] = (5, 0);   // slot 1 = stone wall
