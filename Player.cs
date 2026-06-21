@@ -179,8 +179,8 @@ public class Player
             TargetVoxel = hit;
             PlaceVoxel  = hit + face;
 
-            // Left-hold = mine (only when not holding gun)
-            if (!IsGunSelected && IsMouseButtonDown(MouseButton.Left))
+            // Left-hold = mine (only when not holding a weapon)
+            if (!IsWeaponSelected && IsMouseButtonDown(MouseButton.Left))
             {
                 if (!_mineHP.TryGetValue(hit, out int hp))
                 {
@@ -261,9 +261,15 @@ public class Player
     }
 
     public int Ammo;
+    public int ArmorTier = 0; // 0=none  1=wood(-15%)  2=stone(-35%)
+
+    public bool IsMeleeSelected => HotbarBlocks[SelectedSlot].blockId is 253 or 254;
+    public bool IsWeaponSelected => IsGunSelected || IsMeleeSelected;
 
     public void TakeDamage(int amount)
     {
+        float reduction = ArmorTier == 2 ? 0.35f : ArmorTier == 1 ? 0.15f : 0f;
+        amount = Math.Max(1, (int)(amount * (1f - reduction)));
         HP = Math.Max(0, HP - amount);
     }
 

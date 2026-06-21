@@ -17,6 +17,8 @@ public class Game
     bool  _gameOver      = false;
     bool  _craftingOpen  = false;
     float _gunRecoil     = 0f;
+    float _meleeSwing    = 0f;
+    float _meleeCooldown = 0f;
 
     struct Bullet { public Vector3 Pos; public Vector3 Dir; public float Life; }
     readonly System.Collections.Generic.List<Bullet> _bullets = new();
@@ -31,6 +33,10 @@ public class Game
         new("Ammo ×10",       -1, 10, new[]{ new Ingredient(3,1), new Ingredient(8,2) }),  // 1 wood + 2 iron
         new("Plank Wall ×2",   4,  2, new[]{ new Ingredient(3,2) }),                        // 2 wood
         new("Stone Wall ×2",   5,  2, new[]{ new Ingredient(2,2) }),                        // 2 stone
+        new("Wood Club",      253,  1, new[]{ new Ingredient(3,3) }),                        // 3 wood
+        new("Stone Sword",    254,  1, new[]{ new Ingredient(3,1), new Ingredient(2,3) }),  // 1 wood + 3 stone
+        new("Wood Armor",      -2,  1, new[]{ new Ingredient(3,5) }),                        // 5 wood
+        new("Stone Armor",     -3,  1, new[]{ new Ingredient(2,4), new Ingredient(3,2) }),  // 4 stone + 2 wood
     };
 
     public void Init()
@@ -93,10 +99,15 @@ public class Game
             return; // block everything else while menu is open
         }
 
-        // Left-click shoots when gun is selected, mines otherwise (handled in Player)
+        // Left-click shoots / swings depending on weapon
         if (_player.IsGunSelected && IsMouseButtonPressed(MouseButton.Left)) Shoot();
 
-        _gunRecoil = Math.Max(0f, _gunRecoil - dt * 8f);
+        _meleeCooldown = Math.Max(0f, _meleeCooldown - dt);
+        if (_player.IsMeleeSelected && IsMouseButtonPressed(MouseButton.Left) && _meleeCooldown <= 0f)
+            MeleeAttack();
+
+        _gunRecoil  = Math.Max(0f, _gunRecoil  - dt * 8f);
+        _meleeSwing = Math.Max(0f, _meleeSwing - dt * 6f);
         UpdateBullets(dt);
 
         // Sync camera to player look
@@ -120,6 +131,29 @@ public class Game
             Dir  = _player.Forward,
             Life = GunRange / 40f
         });
+    }
+
+    void MeleeAttack()
+    {
+        byte wid  = _player.HotbarBlocks[_player.SelectedSlot].blockId;
+        int  dmg  = wid == 254 ? 80 : 35;   // stone sword : wood club
+        float cd  = wid == 254 ? 0.5f : 0.6f;
+        _meleeCooldown = cd;
+        _meleeSwing    = 1f;
+
+        Vector3 fwd2D = new(_player.Forward.X, 0, _player.Forward.Z);
+        if (fwd2D.LengthSquared() > 0) fwd2D = Vector3.Normalize(fwd2D);
+
+        foreach (var z in _waves.Active)
+        {
+            if (z.IsDead) continue;
+            float dist = Vector3.Distance(_player.Position, z.Position);
+            if (dist > 2.2f) continue;
+            Vector3 toZ = Vector3.Normalize(z.Position - _player.Position);
+            toZ = new Vector3(toZ.X, 0, toZ.Z);
+            if (toZ.LengthSquared() > 0 && Vector3.Dot(fwd2D, Vector3.Normalize(toZ)) > 0.3f)
+                z.TakeDamage(dmg);
+        }
     }
 
     void UpdateBullets(float dt)
@@ -181,7 +215,29 @@ public class Game
             _player.Inventory[ing.Id] -= ing.Amt;
 
         if (r.OutputId == -1)
+        {
             _player.Ammo += r.OutputCount;
+        }
+        else if (r.OutputId == -2)
+        {
+            _player.ArmorTier = Math.Max(_player.ArmorTier, 1);
+        }
+        else if (r.OutputId == -3)
+        {
+            _player.ArmorTier = Math.Max(_player.ArmorTier, 2);
+        }
+        else if (r.OutputId >= 250)
+        {
+            // Weapon — put in first empty hotbar slot
+            for (int s = 0; s < _player.HotbarBlocks.Length; s++)
+            {
+                if (_player.HotbarBlocks[s].blockId == 0)
+                {
+                    _player.HotbarBlocks[s] = ((byte)r.OutputId, 1);
+                    break;
+                }
+            }
+        }
         else
         {
             _player.Inventory.TryGetValue((byte)r.OutputId, out int cur);
@@ -242,6 +298,8 @@ public class Game
             Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, fwd));
             Vector3 up    = Vector3.Cross(fwd, right);
 
+            byte selId = _player.HotbarBlocks[_player.SelectedSlot].blockId;
+
             if (_player.IsGunSelected)
             {
                 float   kick    = _gunRecoil * 0.12f;
@@ -254,6 +312,36 @@ public class Game
                 DrawCube(gunBase - up * 0.07f - fwd * 0.05f, 0.06f, 0.1f, 0.06f, new Color((byte)80,(byte)50,(byte)30,(byte)255));
                 if (_gunRecoil > 0.8f)
                     DrawCube(gunBase + fwd * 0.28f, 0.12f, 0.12f, 0.06f, new Color((byte)255,(byte)220,(byte)50,(byte)200));
+            }
+            else if (selId == 253) // Wood Club
+            {
+                float swing = _meleeSwing * 0.35f;
+                Vector3 clubBase = _player.EyePos
+                    + right * 0.22f - up * (0.15f - swing) + fwd * (0.4f + swing * 0.2f);
+                // Handle
+                DrawCube(clubBase, 0.045f, 0.045f, 0.32f,
+                    new Color((byte)120,(byte)75,(byte)30,(byte)255));
+                // Thick knob head
+                DrawCube(clubBase + fwd * 0.18f + up * 0.02f, 0.1f, 0.1f, 0.14f,
+                    new Color((byte)139,(byte)90,(byte)40,(byte)255));
+            }
+            else if (selId == 254) // Stone Sword
+            {
+                float swing = _meleeSwing * 0.4f;
+                Vector3 swordBase = _player.EyePos
+                    + right * 0.20f - up * (0.14f - swing) + fwd * (0.38f + swing * 0.15f);
+                // Guard (crossguard)
+                DrawCube(swordBase, 0.18f, 0.045f, 0.045f,
+                    new Color((byte)101,(byte)67,(byte)33,(byte)255));
+                // Handle
+                DrawCube(swordBase - fwd * 0.12f, 0.04f, 0.04f, 0.16f,
+                    new Color((byte)120,(byte)75,(byte)30,(byte)255));
+                // Blade (stone-grey, long thin)
+                DrawCube(swordBase + fwd * 0.14f, 0.045f, 0.055f, 0.3f,
+                    new Color((byte)160,(byte)160,(byte)165,(byte)255));
+                // Blade tip (darker)
+                DrawCube(swordBase + fwd * 0.3f + up * 0.01f, 0.025f, 0.03f, 0.1f,
+                    new Color((byte)110,(byte)110,(byte)115,(byte)255));
             }
             else
             {
@@ -300,6 +388,16 @@ public class Game
         Color ammoCol = _player.Ammo > 0 ? Color.White : Color.Red;
         DrawText($"AMMO: {_player.Ammo}", 220, sh - 28, 16, ammoCol);
 
+        // Armor
+        if (_player.ArmorTier > 0)
+        {
+            string armorLabel = _player.ArmorTier == 2 ? "ARMOR: Stone (-35%)" : "ARMOR: Wood (-15%)";
+            Color  armorCol   = _player.ArmorTier == 2
+                ? new Color((byte)160,(byte)160,(byte)180,(byte)255)
+                : new Color((byte)180,(byte)140,(byte)80,(byte)255);
+            DrawText(armorLabel, 330, sh - 28, 16, armorCol);
+        }
+
         // Day/night
         string phase = _dnc.Phase switch
         {
@@ -343,6 +441,16 @@ public class Game
             {
                 DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)80,(byte)200,(byte)80,(byte)255));
                 DrawText("GUN", bx+6, hotbarY+14, 12, Color.White);
+            }
+            else if (slot.blockId == 253)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)139,(byte)90,(byte)40,(byte)255));
+                DrawText("CLUB", bx+2, hotbarY+14, 11, Color.White);
+            }
+            else if (slot.blockId == 254)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)160,(byte)160,(byte)165,(byte)255));
+                DrawText("SWRD", bx+2, hotbarY+14, 11, Color.White);
             }
             else if (slot.blockId != 0)
             {
