@@ -37,6 +37,8 @@ public class Game
     float   _waveBannerTimer   = 0f;
     string  _waveBannerMsg     = "";
     float   _healAccum         = 0f;
+    float   _explosionTimer    = 0f;
+    Vector3 _explosionPos;
     Vector3 _spawnPos;
 
     static readonly int[] LevelThresholds = { 50, 150, 300, 500, 750 };
@@ -57,7 +59,7 @@ public class Game
     // ── Crafting recipes ─────────────────────────────────────────────
     // OutputId -1 = ammo (special). Cost = (blockId, count) pairs.
     record struct Ingredient(byte Id, int Amt);
-    record struct Recipe(string Name, int OutputId, int OutputCount, Ingredient[] Cost);
+    record struct Recipe(string Name, int OutputId, int OutputCount, Ingredient[] Cost, int RequiredLevel = 0);
 
     static readonly Recipe[] Recipes =
     {
@@ -67,12 +69,13 @@ public class Game
         new("Wood Club",      253,  1, new[]{ new Ingredient(3,3) }),                        // 3 wood
         new("Stone Sword",    254,  1, new[]{ new Ingredient(3,1), new Ingredient(2,3) }),  // 1 wood + 3 stone
         new("Wood Armor",      -2,  1, new[]{ new Ingredient(3,5) }),                         // 5 wood
-        new("Stone Armor",     -3,  1, new[]{ new Ingredient(2,4), new Ingredient(3,2) }),  // 4 stone + 2 wood
-        new("Iron Sword",     252,  1, new[]{ new Ingredient(3,2), new Ingredient(8,5) }),  // 2 wood + 5 iron
-        new("Iron Armor",      -4,  1, new[]{ new Ingredient(8,6) }),                        // 6 iron
-        new("Stone Hatchet",  249,  1, new[]{ new Ingredient(2,2), new Ingredient(3,2) }),  // 2 stone + 2 wood → 2x mine
-        new("Iron Pickaxe",   250,  1, new[]{ new Ingredient(8,3), new Ingredient(3,2) }),  // 3 iron + 2 wood  → 3x mine
-        new("Healing Amulet",  -8,  1, new[]{ new Ingredient(8,3), new Ingredient(2,2) }),  // 3 iron + 2 stone → +0.1 HP/s
+        new("Stone Armor",     -3,  1, new[]{ new Ingredient(2,4), new Ingredient(3,2) },  RequiredLevel:1),
+        new("Iron Sword",     252,  1, new[]{ new Ingredient(3,2), new Ingredient(8,5) },  RequiredLevel:2),
+        new("Iron Armor",      -4,  1, new[]{ new Ingredient(8,6) },                        RequiredLevel:3),
+        new("Stone Hatchet",  249,  1, new[]{ new Ingredient(2,2), new Ingredient(3,2) }),
+        new("Iron Pickaxe",   250,  1, new[]{ new Ingredient(8,3), new Ingredient(3,2) },  RequiredLevel:2),
+        new("Healing Amulet",  -8,  1, new[]{ new Ingredient(8,3), new Ingredient(2,2) },  RequiredLevel:3),
+        new("Explosive",       -9,  1, new[]{ new Ingredient(8,2), new Ingredient(3,3) },  RequiredLevel:4),
     };
 
     public void Init()
@@ -217,6 +220,10 @@ public class Game
             return; // block everything else while menu is open
         }
 
+        // G = throw explosive
+        if (IsKeyPressed(KeyboardKey.G)) ThrowExplosive();
+        if (_explosionTimer > 0) _explosionTimer -= dt;
+
         // Left-click shoots / swings depending on weapon
         if (_player.IsGunSelected && IsMouseButtonPressed(MouseButton.Left)) Shoot();
 
@@ -280,6 +287,34 @@ public class Game
         _craftingOpen     = false;
         _bullets.Clear();
         _deathCount++;
+    }
+
+    void ThrowExplosive()
+    {
+        if (_player.Explosives <= 0) return;
+        _player.Explosives--;
+
+        // Land at crosshair hit point or max range ahead
+        Vector3 target;
+        if (_world.Raycast(_player.EyePos, _player.Forward, 20f, out var hit, out _))
+            target = new Vector3(hit.X + 0.5f, hit.Y + 0.5f, hit.Z + 0.5f);
+        else
+            target = _player.EyePos + _player.Forward * 15f;
+
+        _explosionPos   = target;
+        _explosionTimer = 0.5f;
+
+        // AoE damage with falloff
+        const float Radius = 3.5f;
+        foreach (var z in _waves.Active)
+        {
+            if (z.IsDead) continue;
+            float dist = Vector3.Distance(target, z.Position + new Vector3(0, 1f, 0));
+            if (dist >= Radius) continue;
+            bool wasDead = z.IsDead;
+            z.TakeDamage((int)(220f * (1f - dist / Radius)));
+            if (z.IsDead && !wasDead) AwardKill(z);
+        }
     }
 
     void UpdateSpikeTraps()
@@ -481,6 +516,7 @@ public class Game
     void TryCraft(int index)
     {
         var r = Recipes[index];
+        if (_player.Level < r.RequiredLevel) return; // level gate
         foreach (var ing in r.Cost)
         {
             _player.Inventory.TryGetValue(ing.Id, out int have);
@@ -512,6 +548,10 @@ public class Game
         else if (r.OutputId == -8)
         {
             _player.HealRate = Math.Min(1f, _player.HealRate + 0.1f); // caps at 1 HP/s
+        }
+        else if (r.OutputId == -9)
+        {
+            _player.Explosives++;
         }
         else if (r.OutputId >= 249)
         {
@@ -550,6 +590,7 @@ public class Game
         _levelUpTimer     = 0f;
         _waveBannerTimer  = 0f;
         _healAccum        = 0f;
+        _explosionTimer   = 0f;
         Init();
         _gameOver = false;
     }
@@ -593,6 +634,17 @@ public class Game
         // Bullets
         foreach (var b in _bullets)
             DrawSphere(b.Pos, 0.07f, new Color((byte)255,(byte)220,(byte)50,(byte)255));
+
+        // Explosion flash
+        if (_explosionTimer > 0)
+        {
+            float t = _explosionTimer / 0.5f; // 1=fresh, 0=gone
+            float rad = (1f - t) * 3.8f + 0.2f;
+            DrawSphere(_explosionPos, rad,
+                new Color((byte)255,(byte)(int)(60+t*100),(byte)10,(byte)(int)(t*170)));
+            DrawSphere(_explosionPos, rad * 0.4f,
+                new Color((byte)255,(byte)230,(byte)80,(byte)(int)(t*140)));
+        }
 
         // Campfire flames + torch glow + spike decorations
         DrawCampfireFlames();
@@ -751,37 +803,37 @@ public class Game
         DrawRectangle(10, sh - 30, (int)(200f * _player.HP / _player.MaxHP), 20, Color.Red);
         DrawText($"HP: {_player.HP}/{_player.MaxHP}", 15, sh - 28, 16, Color.White);
 
-        // Ammo
+        // Row: AMMO | EXPL
         Color ammoCol = _player.Ammo > 0 ? Color.White : Color.Red;
-        DrawText($"AMMO: {_player.Ammo}", 220, sh - 28, 16, ammoCol);
+        DrawText($"AMMO: {_player.Ammo}", 215, sh - 30, 16, ammoCol);
+        if (_player.Explosives > 0)
+            DrawText($"EXPL: {_player.Explosives}", 315, sh - 30, 16,
+                new Color((byte)255,(byte)140,(byte)0,(byte)255));
 
-        // Speed + heal indicators
-        int statsX = 220;
-        if (_player.SpeedBonus > 0)
-        {
-            string spd = $"SPD+{_player.SpeedBonus:0.0}";
-            DrawText(spd, statsX, sh - 28, 14, new Color((byte)100,(byte)220,(byte)255,(byte)255));
-            statsX += MeasureText(spd, 14) + 10;
-        }
-        if (_player.HealRate > 0)
-        {
-            string heal = $"HP+{_player.HealRate:0.0}/s";
-            DrawText(heal, statsX, sh - 28, 14, new Color((byte)100,(byte)255,(byte)150,(byte)255));
-        }
-
-        // Armor
+        // Row: Armor | Speed | HealRate
+        int statsX = 215;
         if (_player.ArmorTier > 0)
         {
-            string armorLabel = _player.ArmorTier == 3 ? "ARMOR: Iron (-55%)"
-                              : _player.ArmorTier == 2 ? "ARMOR: Stone (-35%)"
-                              : "ARMOR: Wood (-15%)";
-            Color armorCol = _player.ArmorTier == 3
+            string arm = _player.ArmorTier == 3 ? "ARM:Iron"
+                       : _player.ArmorTier == 2 ? "ARM:Stone"
+                       : "ARM:Wood";
+            Color armCol = _player.ArmorTier == 3
                 ? new Color((byte)190,(byte)195,(byte)210,(byte)255)
                 : _player.ArmorTier == 2
                     ? new Color((byte)160,(byte)160,(byte)180,(byte)255)
                     : new Color((byte)180,(byte)140,(byte)80,(byte)255);
-            DrawText(armorLabel, 330, sh - 28, 16, armorCol);
+            DrawText(arm, statsX, sh - 47, 14, armCol);
+            statsX += MeasureText(arm, 14) + 10;
         }
+        if (_player.SpeedBonus > 0)
+        {
+            string spd = $"SPD+{_player.SpeedBonus:0.0}";
+            DrawText(spd, statsX, sh - 47, 14, new Color((byte)100,(byte)220,(byte)255,(byte)255));
+            statsX += MeasureText(spd, 14) + 10;
+        }
+        if (_player.HealRate > 0)
+            DrawText($"HP+{_player.HealRate:0.0}/s", statsX, sh - 47, 14,
+                new Color((byte)100,(byte)255,(byte)150,(byte)255));
 
         // Day/night
         string phase = _dnc.Phase switch
@@ -908,7 +960,9 @@ public class Game
         string hint = ncr ? crateHint
                     : nc  ? "E: Open Crafting Table"
                     : ncf ? "CAMPFIRE: Hunger + Thirst restoring"
-                    : "WASD/Arrows move  LClick shoot/mine/swing  RClick build  F eat food  Space jump";
+                    : _player.Explosives > 0
+            ? "G: Throw Explosive  WASD move  LClick shoot/swing  RClick build  F eat"
+            : "WASD/Arrows move  LClick shoot/mine/swing  RClick build  F eat  Space jump";
         Color hintCol = (ncr || nc) ? Color.Yellow
                       : ncf         ? new Color((byte)255,(byte)150,(byte)50,(byte)255)
                       : Color.Gray;
@@ -1152,19 +1206,28 @@ public class Game
         for (int i = 0; i < Recipes.Length; i++)
         {
             var r   = Recipes[i];
-            int ry  = py + 48 + i * 44;
+            int ry   = py + 48 + i * 44;
+            bool locked = _player.Level < r.RequiredLevel;
             if (i == _selectedRecipe)
-                DrawRectangle(px+6, ry-4, pw-12, 42, new Color((byte)60,(byte)40,(byte)15,(byte)160));
-            bool can = CanAfford(r);
+                DrawRectangle(px+6, ry-4, pw-12, 42,
+                    locked ? new Color((byte)60,(byte)15,(byte)15,(byte)160)
+                           : new Color((byte)60,(byte)40,(byte)15,(byte)160));
+            bool can = !locked && CanAfford(r);
 
-            Color nameCol = can ? Color.White : Color.Gray;
-            DrawText($"[{i+1}]  {r.Name}", px+16, ry, 18, nameCol);
+            Color nameCol = locked ? Color.DarkGray : (can ? Color.White : Color.Gray);
+            string prefix = i < 9 ? $"[{i+1}]" : "[ ]";
+            DrawText($"{prefix}  {r.Name}", px+16, ry, 18, nameCol);
 
-            string costStr = CostString(r);
-            Color costCol  = can
-                ? new Color((byte)120,(byte)220,(byte)120,(byte)255)
-                : new Color((byte)200,(byte)80,(byte)80,(byte)255);
-            DrawText(costStr, px+32, ry+22, 14, costCol);
+            if (locked)
+                DrawText($"Requires Level {r.RequiredLevel}", px+32, ry+22, 13, Color.DarkGray);
+            else
+            {
+                string costStr = CostString(r);
+                Color costCol  = can
+                    ? new Color((byte)120,(byte)220,(byte)120,(byte)255)
+                    : new Color((byte)200,(byte)80,(byte)80,(byte)255);
+                DrawText(costStr, px+32, ry+22, 13, costCol);
+            }
         }
 
         DrawText("↑↓ Navigate   Enter Craft   ESC Close", px+pw/2 - MeasureText("↑↓ Navigate   Enter Craft   ESC Close",12)/2, py+ph-22, 12, Color.DarkGray);

@@ -281,6 +281,7 @@ public class Player
     public int   Level       = 0;
     public float SpeedBonus  = 0f;  // added by level-ups at even levels
     public float HealRate    = 0f;  // HP/s passive regen (from Healing Amulet)
+    public int   Explosives  = 0;
 
     public bool IsMeleeSelected  => HotbarBlocks[SelectedSlot].blockId is 252 or 253 or 254;
     public bool IsWeaponSelected => IsGunSelected || IsMeleeSelected;

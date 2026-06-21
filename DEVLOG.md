@@ -6,6 +6,28 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 12 — Thrown Explosive, Crafting Level Gates, HUD Fix  *(2026-06-21)*
+
+**Thrown Explosive** (craft: 2 iron + 3 wood, Lv.4 required)
+- G key tosses explosive at crosshair hit point (up to 20 units); lands at target or 15 units ahead
+- AoE 220 → 0 damage falloff over 3.5-unit radius; all zombies in range take damage
+- Orange/yellow sphere flash drawn in 3D for 0.5 seconds (grows and fades)
+- EXPL count shown in HUD next to AMMO; hint text swaps to "G: Throw Explosive" when held
+- `Player.Explosives` field; -9 OutputId in TryCraft
+
+**Crafting level gates**
+- `Recipe.RequiredLevel` positional field (default 0, no gate)
+- Gated: Stone Armor Lv.1, Iron Sword Lv.2, Iron Pickaxe Lv.2, Iron Armor Lv.3, Healing Amulet Lv.3, Explosive Lv.4
+- TryCraft returns early if player.Level < RequiredLevel
+- Locked recipes show as dark grey with "Requires Level N" instead of cost; selection highlight turns red for locked
+
+**HUD layout bug fix**
+- Sprint 11 introduced SPD/heal indicators at x=220 which overlapped AMMO (also at 220)
+- Fixed: AMMO + EXPL now on their own row at sh-30; Armor/SPD/HealRate on a compact row at sh-47
+- All text is non-overlapping and visible at 1280×720
+
+---
+
 ## Sprint 11 — Wave Preview, Level Variety, Larger World, Healing Amulet  *(2026-06-21)*
 
 **Wave preview banner**
@@ -265,6 +287,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Random world events: meteor strike, fog of war, double-wave night
-- [ ] Crafting unlock system: some recipes locked until required level
-- [ ] Thrown explosive: craft with iron + wood, G to toss at crosshair target
+- [ ] Random world events: fog night (reduced view range), double-wave night
+- [ ] Explosive voxel destruction: explosion removes nearby dirt/stone blocks
+- [ ] Zombie types: armoured zombie (resists bullets, weak to melee)
