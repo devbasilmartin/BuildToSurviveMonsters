@@ -20,8 +20,11 @@ public class Game
     float _meleeSwing      = 0f;
     float _meleeCooldown   = 0f;
     float _starvationTimer = 0f;
-    int   _killCount       = 0;
-    readonly Random _rng   = new();
+    int   _killCount        = 0;
+    bool  _nightCleared     = false;
+    float _nightStartDelay  = 0f;   // prevents false clear at night start
+    float _clearBannerTimer = 0f;   // how long to show "WAVE CLEARED!" banner
+    readonly Random _rng    = new();
 
     struct Bullet { public Vector3 Pos; public Vector3 Dir; public float Life; }
     readonly System.Collections.Generic.List<Bullet> _bullets = new();
@@ -34,8 +37,8 @@ public class Game
     static readonly Recipe[] Recipes =
     {
         new("Ammo ×10",       -1, 10, new[]{ new Ingredient(3,1), new Ingredient(8,2) }),  // 1 wood + 2 iron
-        new("Plank Wall ×2",   4,  2, new[]{ new Ingredient(3,2) }),                        // 2 wood
-        new("Stone Wall ×2",   5,  2, new[]{ new Ingredient(2,2) }),                        // 2 stone
+        new("Quiver ×20",     -1, 20, new[]{ new Ingredient(3,2), new Ingredient(8,1) }),  // 2 wood + 1 iron  (better rate)
+        new("Bandage",        -5,  1, new[]{ new Ingredient(11,3) }),                       // 3 food → heal 25 HP
         new("Wood Club",      253,  1, new[]{ new Ingredient(3,3) }),                        // 3 wood
         new("Stone Sword",    254,  1, new[]{ new Ingredient(3,1), new Ingredient(2,3) }),  // 1 wood + 3 stone
         new("Wood Armor",      -2,  1, new[]{ new Ingredient(3,5) }),                         // 5 wood
@@ -60,7 +63,8 @@ public class Game
 
         // Day/night
         _dnc = new DayNightCycle();
-        _dnc.OnNightStart += () => { /* could flash screen */ };
+        _dnc.OnNightStart += () => { _nightCleared = false; _nightStartDelay = 2f; };
+        _dnc.OnDayStart   += () => { _nightCleared = false; };
 
         // Enemies
         _waves = new WaveSpawner(_world, _dnc);
@@ -100,6 +104,26 @@ public class Game
             if (_starvationTimer >= 3f) { _starvationTimer = 0f; _player.TakeDamage(3); }
         }
         else _starvationTimer = 0f;
+
+        // Campfire: restore hunger + thirst when nearby
+        if (NearCampfire())
+        {
+            _player.Hunger = Math.Min(100f, _player.Hunger + 4f * dt);
+            _player.Thirst = Math.Min(100f, _player.Thirst + 2.5f * dt);
+        }
+
+        // Night clear bonus
+        if (_nightStartDelay > 0) _nightStartDelay -= dt;
+        if (_dnc.Phase == DayPhase.Night && !_nightCleared
+            && _nightStartDelay <= 0 && _waves.Active.Count == 0)
+        {
+            _nightCleared     = true;
+            _clearBannerTimer = 4f;
+            _player.Ammo += 15;
+            _player.Inventory.TryGetValue(11, out int cf);
+            _player.Inventory[11] = cf + 3;
+        }
+        if (_clearBannerTimer > 0) _clearBannerTimer -= dt;
 
         // F = eat food
         if (IsKeyPressed(KeyboardKey.F))
@@ -258,6 +282,16 @@ public class Game
         return null;
     }
 
+    bool NearCampfire()
+    {
+        var v = VoxelWorld.WorldToVoxel(_player.Position);
+        for (int dx = -3; dx <= 3; dx++)
+        for (int dy = -1; dy <= 3; dy++)
+        for (int dz = -3; dz <= 3; dz++)
+            if (_world.GetVoxel(v.X+dx, v.Y+dy, v.Z+dz) == 13) return true;
+        return false;
+    }
+
     void OpenCrate(Vector3Int pos)
     {
         _world.SetVoxel(pos.X, pos.Y, pos.Z, 0);
@@ -295,6 +329,10 @@ public class Game
         {
             _player.ArmorTier = Math.Max(_player.ArmorTier, 3);
         }
+        else if (r.OutputId == -5)
+        {
+            _player.HP = Math.Min(_player.MaxHP, _player.HP + 25);
+        }
         else if (r.OutputId >= 250)
         {
             // Weapon — put in first empty hotbar slot
@@ -316,7 +354,10 @@ public class Game
 
     void Restart()
     {
-        _craftingOpen = false;
+        _craftingOpen     = false;
+        _killCount        = 0;
+        _nightCleared     = false;
+        _clearBannerTimer = 0f;
         Init();
         _gameOver = false;
     }
@@ -360,6 +401,9 @@ public class Game
         // Bullets
         foreach (var b in _bullets)
             DrawSphere(b.Pos, 0.07f, new Color((byte)255,(byte)220,(byte)50,(byte)255));
+
+        // Campfire flames
+        DrawCampfireFlames();
 
         // Viewmodel
         {
@@ -568,6 +612,11 @@ public class Game
                 DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)200,(byte)80,(byte)50,(byte)255));
                 DrawText("FOOD", bx+2, hotbarY+14, 11, Color.White);
             }
+            else if (slot.blockId == 13)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)180,(byte)60,(byte)15,(byte)255));
+                DrawText("FIRE", bx+4, hotbarY+14, 11, Color.White);
+            }
             else if (slot.blockId != 0)
             {
                 var col = Blocks.Get(slot.blockId).Color;
@@ -578,13 +627,29 @@ public class Game
         }
 
         // Context hint or controls
-        bool nc = NearCraftingTable();
+        bool nc  = NearCraftingTable();
         bool ncr = FindNearbyCrate().HasValue;
-        string hint = ncr  ? "E: Open Loot Crate"
-                    : nc   ? "E: Open Crafting Table"
+        bool ncf = NearCampfire();
+        string hint = ncr ? "E: Open Loot Crate"
+                    : nc  ? "E: Open Crafting Table"
+                    : ncf ? "CAMPFIRE: Hunger + Thirst restoring"
                     : "WASD/Arrows move  LClick shoot/mine/swing  RClick build  F eat food  Space jump";
-        Color hintCol = (ncr || nc) ? Color.Yellow : Color.Gray;
+        Color hintCol = (ncr || nc) ? Color.Yellow
+                      : ncf         ? new Color((byte)255,(byte)150,(byte)50,(byte)255)
+                      : Color.Gray;
         DrawText(hint, 10, sh - 18, 12, hintCol);
+
+        // Wave cleared banner
+        if (_clearBannerTimer > 0)
+        {
+            byte alpha = (byte)(int)(Math.Min(1f, _clearBannerTimer) * 255);
+            string banner = "WAVE CLEARED!  +15 Ammo  +3 Food";
+            int bw = MeasureText(banner, 28);
+            DrawRectangle(sw/2 - bw/2 - 12, sh/2 - 80, bw + 24, 44,
+                new Color((byte)0,(byte)0,(byte)0,(byte)(alpha/2)));
+            DrawText(banner, sw/2 - bw/2, sh/2 - 70, 28,
+                new Color((byte)80,(byte)255,(byte)80,alpha));
+        }
     }
 
     void DrawGameOver()
@@ -595,6 +660,26 @@ public class Game
         DrawText(msg, sw/2 - MeasureText(msg, 60)/2, sh/2 - 50, 60, Color.Red);
         string sub = $"Survived {_dnc.NightCount} night(s)  |  Kills: {_killCount}  |  Press R to restart";
         DrawText(sub, sw/2 - MeasureText(sub, 24)/2, sh/2 + 30, 24, Color.White);
+    }
+
+    void DrawCampfireFlames()
+    {
+        var v = VoxelWorld.WorldToVoxel(_player.EyePos);
+        float t = (float)GetTime();
+        for (int dx = -10; dx <= 10; dx++)
+        for (int dy = -3;  dy <= 8;  dy++)
+        for (int dz = -10; dz <= 10; dz++)
+        {
+            int cx = v.X+dx, cy = v.Y+dy, cz = v.Z+dz;
+            if (_world.GetVoxel(cx, cy, cz) != 13) continue;
+            float bob = MathF.Sin(t * 5f + cx * 1.3f + cz * 0.7f) * 0.05f;
+            // Outer orange flame
+            DrawCube(new Vector3(cx+0.5f, cy+1.25f+bob, cz+0.5f), 0.22f, 0.32f, 0.22f,
+                new Color((byte)255,(byte)120,(byte)10,(byte)210));
+            // Inner yellow tip
+            DrawCube(new Vector3(cx+0.5f, cy+1.5f+bob, cz+0.5f), 0.12f, 0.22f, 0.12f,
+                new Color((byte)255,(byte)220,(byte)50,(byte)180));
+        }
     }
 
     void DrawCraftingUI()

@@ -52,6 +52,7 @@ public class Player
         HotbarBlocks[1] = (5,   0); // slot 1 = stone wall
         HotbarBlocks[2] = (4,   0); // slot 2 = plank wall
         HotbarBlocks[3] = (12,  0); // slot 3 = iron wall
+        HotbarBlocks[4] = (13,  0); // slot 4 = campfire
     }
 
     public Vector3 EyePos => Position + new Vector3(0, EyeHeight, 0);
@@ -232,8 +233,11 @@ public class Player
                         {
                             byte costId = slot.blockId == 4  ? (byte)3   // plank wall = wood
                                         : slot.blockId == 12 ? (byte)8   // iron wall  = iron
+                                        : slot.blockId == 13 ? (byte)3   // campfire   = wood
                                         : (byte)2;                        // stone wall = stone
-                            int  cost   = slot.blockId == 12 ? 3 : 2;
+                            int  cost   = slot.blockId == 12 ? 3
+                                        : slot.blockId == 13 ? 3
+                                        : 2;
                             Inventory.TryGetValue(costId, out int have);
                             if (have >= cost)
                             {

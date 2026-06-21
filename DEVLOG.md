@@ -6,6 +6,29 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 5 — Campfire, Night Clear Bonus, Bandage & Quiver  *(2026-06-21)*
+
+**Campfire block** (blockId 13)
+- Craft from hotbar slot 4 using 3 wood per placement (right-click to place like walls)
+- Walk within 3 blocks of a placed campfire: Hunger +4/s, Thirst +2.5/s
+- Animated bobbing orange/yellow flame drawn above the block in 3D
+- Context hint changes to orange "CAMPFIRE: Hunger + Thirst restoring" when in range
+
+**Night clear bonus**
+- If all zombies are killed during a night: +15 Ammo + 3 Food awarded automatically
+- "WAVE CLEARED! +15 Ammo +3 Food" banner fades in green over 4 seconds
+- 2-second startup guard prevents false trigger at night start before zombies spawn
+
+**New crafting recipes** (replaced redundant wall recipes)
+- **Quiver ×20**: 2 wood + 1 iron → better ammo-per-iron than Ammo×10 recipe
+- **Bandage**: 3 food → heal +25 HP (trade hunger for health at the crafting table)
+
+**Removed recipes**: PlankWall ×2 and StoneWall ×2 — these were redundant since walls are placed directly from hotbar already
+
+**Bug fix**: Kill count, night-cleared flag, and banner timer now reset on R-to-restart
+
+---
+
 ## Sprint 4 — Iron Tier, Kill Counter, Zombie Scaling  *(2026-06-21)*
 
 **Iron tier**
@@ -105,10 +128,10 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ## Backlog
 
-- [ ] More loot crate variety (weapon crate, ammo crate, food crate with distinct colours)
-- [ ] Campfire block: craft from 3 wood + 1 stone; restores hunger/thirst when nearby
-- [ ] Night survival bonus: extra ammo or food rewarded for clearing all zombies
-- [ ] Player respawn at spawn with half HP (instead of hard game-over)
-- [ ] Sound effects (gunshot, melee swing, zombie groan)
+- [ ] Loot crate variety: weapon/ammo/food crates with distinct colors and drop tables
+- [ ] Player respawn at spawn with 50 HP on death (instead of hard game-over)
+- [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
-- [ ] Minimap (top-down 2D overlay of explored area)
+- [ ] Minimap (top-down 2D overlay, updates as player explores)
+- [ ] Torch block: craft from 1 wood, places a light-colored block for base marking
+- [ ] Zombie boss: giant zombie spawns on night 5, more HP, drops guaranteed iron
