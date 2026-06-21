@@ -6,6 +6,29 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 9 — Pause Screen, Pickaxe Tools, Crafting Navigation  *(2026-06-21)*
+
+**Pause screen** (ESC when not crafting)
+- Shows Night / Kills / Deaths / playtime (timer pauses while paused)
+- Q to quit cleanly; R to restart; ESC to resume
+- `game.ShouldQuit` exposed to Program.cs so the main loop exits gracefully
+
+**Mining tools** — two new craftable items
+- **Stone Hatchet** (249): 2 stone + 2 wood → 2× mining damage per tick; wide stone-blade viewmodel
+- **Iron Pickaxe** (250): 3 iron + 2 wood → 3× mining damage per tick; long silver-head viewmodel
+- `Player.MineTickDamage` property drives tick damage for all held items
+- Tools go to the first empty hotbar slot just like melee weapons
+
+**Crafting UI navigation**
+- ↑↓ arrow keys move selection cursor between recipes (wraps at ends)
+- Enter / Numpad Enter crafts the highlighted recipe
+- Number keys 1–9 still work for the first 9 entries
+- Selected recipe highlighted with amber background strip
+- Row height reduced 52→44px to fit 11 recipes comfortably at 720p
+- Footer updated to show navigation keys
+
+---
+
 ## Sprint 8 — Minimap, Zombie Wall-Avoidance, IsSolid Bug Fix  *(2026-06-21)*
 
 **Bug fix: VoxelWorld.IsSolid**
@@ -197,6 +220,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Score screen on Escape key; show nights, kills, deaths; confirm-to-quit
-- [ ] Iron Pickaxe: faster mining speed multiplier when equipped
-- [ ] More world variety: rivers, different biomes, larger ore deposits night 3+
+- [ ] More world variety: rivers, larger ore deposits, biome variation
+- [ ] Armor stand: display equipped armor set visually in base
+- [ ] XP/level system: gain XP on kills, level unlocks stat boosts

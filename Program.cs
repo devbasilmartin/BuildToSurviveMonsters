@@ -8,7 +8,7 @@ SetTargetFPS(60);
 var game = new Game();
 game.Init();
 
-while (!WindowShouldClose())
+while (!WindowShouldClose() && !game.ShouldQuit)
 {
     float dt = GetFrameTime();
     game.Update(dt);

@@ -192,7 +192,7 @@ public class Player
                     hp = def.MaxHP + _world.GlobalBlockHPBonus;
                 }
                 // Each frame held = 1 "tick" (simple: 1 tick per frame, MaxHP ticks to break)
-                hp--;
+                hp -= MineTickDamage;
                 if (hp <= 0)
                 {
                     _mineHP.Remove(hit);
@@ -278,8 +278,18 @@ public class Player
     public float Thirst     = 100f;
     public bool  Invincible = false;
 
-    public bool IsMeleeSelected => HotbarBlocks[SelectedSlot].blockId is 252 or 253 or 254;
+    public bool IsMeleeSelected  => HotbarBlocks[SelectedSlot].blockId is 252 or 253 or 254;
     public bool IsWeaponSelected => IsGunSelected || IsMeleeSelected;
+
+    // Mining speed: pickaxes deal more hp damage per tick
+    public int MineTickDamage
+    {
+        get
+        {
+            byte id = HotbarBlocks[SelectedSlot].blockId;
+            return id == 250 ? 3 : id == 249 ? 2 : 1;
+        }
+    }
 
     public void TakeDamage(int amount)
     {

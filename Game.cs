@@ -16,6 +16,10 @@ public class Game
 
     bool    _gameOver          = false;
     bool    _craftingOpen      = false;
+    bool    _pauseOpen         = false;
+    int     _selectedRecipe    = 0;
+    float   _timePlayed        = 0f;
+    public  bool ShouldQuit    = false;
     float   _gunRecoil         = 0f;
     float   _meleeSwing        = 0f;
     float   _meleeCooldown     = 0f;
@@ -59,6 +63,8 @@ public class Game
         new("Stone Armor",     -3,  1, new[]{ new Ingredient(2,4), new Ingredient(3,2) }),  // 4 stone + 2 wood
         new("Iron Sword",     252,  1, new[]{ new Ingredient(3,2), new Ingredient(8,5) }),  // 2 wood + 5 iron
         new("Iron Armor",      -4,  1, new[]{ new Ingredient(8,6) }),                        // 6 iron
+        new("Stone Hatchet",  249,  1, new[]{ new Ingredient(2,2), new Ingredient(3,2) }),  // 2 stone + 2 wood → 2x mine
+        new("Iron Pickaxe",   250,  1, new[]{ new Ingredient(8,3), new Ingredient(3,2) }),  // 3 iron + 2 wood  → 3x mine
     };
 
     public void Init()
@@ -156,6 +162,22 @@ public class Game
             }
         }
 
+        _timePlayed += dt;
+
+        // Escape: close crafting or toggle pause
+        if (IsKeyPressed(KeyboardKey.Escape))
+        {
+            if (_craftingOpen) { _craftingOpen = false; _selectedRecipe = 0; }
+            else               { _pauseOpen = !_pauseOpen; }
+        }
+
+        if (_pauseOpen)
+        {
+            if (IsKeyPressed(KeyboardKey.Q)) ShouldQuit = true;
+            if (IsKeyPressed(KeyboardKey.R)) Restart();
+            return;
+        }
+
         // E: open loot crate first, else toggle crafting table
         bool nearTable = NearCraftingTable();
         Vector3Int? nearCrate = FindNearbyCrate();
@@ -166,14 +188,18 @@ public class Game
             else if (nearTable || _craftingOpen)
                 _craftingOpen = !_craftingOpen;
         }
-        if (IsKeyPressed(KeyboardKey.Escape))
-            _craftingOpen = false;
 
-        // Craft on number keys when menu is open
+        // Craft: arrow-key navigation + Enter; number keys 1-9 for first 9
         if (_craftingOpen)
         {
-            for (int i = 0; i < Recipes.Length; i++)
-                if (IsKeyPressed(KeyboardKey.One + i)) TryCraft(i);
+            if (IsKeyPressed(KeyboardKey.Up))
+                _selectedRecipe = (_selectedRecipe - 1 + Recipes.Length) % Recipes.Length;
+            if (IsKeyPressed(KeyboardKey.Down))
+                _selectedRecipe = (_selectedRecipe + 1) % Recipes.Length;
+            if (IsKeyPressed(KeyboardKey.Enter) || IsKeyPressed(KeyboardKey.KpEnter))
+                TryCraft(_selectedRecipe);
+            for (int i = 0; i < Math.Min(9, Recipes.Length); i++)
+                if (IsKeyPressed(KeyboardKey.One + i)) { _selectedRecipe = i; TryCraft(i); }
             return; // block everything else while menu is open
         }
 
@@ -427,9 +453,9 @@ public class Game
         {
             _player.HP = Math.Min(_player.MaxHP, _player.HP + 25);
         }
-        else if (r.OutputId >= 250)
+        else if (r.OutputId >= 249)
         {
-            // Weapon — put in first empty hotbar slot
+            // Weapon/tool — put in first empty hotbar slot
             for (int s = 0; s < _player.HotbarBlocks.Length; s++)
             {
                 if (_player.HotbarBlocks[s].blockId == 0)
@@ -458,6 +484,9 @@ public class Game
         _spikeTimer       = 0f;
         _mmDirty          = true;
         _mmAge            = 0f;
+        _pauseOpen        = false;
+        _selectedRecipe   = 0;
+        _timePlayed       = 0f;
         Init();
         _gameOver = false;
     }
@@ -576,19 +605,35 @@ public class Game
                 DrawCube(swordBase + fwd * 0.3f + up * 0.01f, 0.025f, 0.03f, 0.1f,
                     new Color((byte)110,(byte)110,(byte)115,(byte)255));
             }
+            else if (selId == 249) // Stone Hatchet — wide stone blade, short handle
+            {
+                Vector3 hBase = _player.EyePos + right * 0.24f - up * 0.20f + fwd * 0.40f;
+                DrawCube(hBase, 0.04f, 0.04f, 0.28f,
+                    new Color((byte)101,(byte)67,(byte)33,(byte)255)); // handle
+                DrawCube(hBase + fwd * 0.14f + up * 0.04f, 0.30f, 0.18f, 0.06f,
+                    new Color((byte)110,(byte)110,(byte)115,(byte)255)); // stone blade
+                DrawCube(hBase + fwd * 0.20f - up * 0.06f, 0.1f, 0.08f, 0.05f,
+                    new Color((byte)90,(byte)90,(byte)95,(byte)255));   // lower edge
+            }
+            else if (selId == 250) // Iron Pickaxe — longer, silver head
+            {
+                Vector3 pBase = _player.EyePos + right * 0.24f - up * 0.22f + fwd * 0.44f;
+                DrawCube(pBase, 0.04f, 0.04f, 0.40f,
+                    new Color((byte)101,(byte)67,(byte)33,(byte)255)); // handle
+                DrawCube(pBase + fwd * 0.22f + up * 0.03f, 0.24f, 0.055f, 0.055f,
+                    new Color((byte)190,(byte)195,(byte)205,(byte)255)); // iron crossbar
+                DrawCube(pBase + fwd * 0.29f - up * 0.06f, 0.04f, 0.14f, 0.04f,
+                    new Color((byte)170,(byte)175,(byte)185,(byte)255)); // pick point
+            }
             else
             {
-                // Pickaxe viewmodel
+                // Default pickaxe viewmodel (stone)
                 Vector3 pickBase = _player.EyePos
                     + right * 0.24f - up * 0.22f + fwd * 0.42f;
-
-                // Handle (wood)
                 DrawCube(pickBase, 0.04f, 0.04f, 0.38f,
                     new Color((byte)101,(byte)67,(byte)33,(byte)255));
-                // Head cross-bar (stone)
                 DrawCube(pickBase + fwd * 0.2f + up * 0.03f, 0.22f, 0.055f, 0.055f,
                     new Color((byte)128,(byte)128,(byte)128,(byte)255));
-                // Pick point (dark, angled down)
                 DrawCube(pickBase + fwd * 0.26f - up * 0.05f, 0.04f, 0.12f, 0.04f,
                     new Color((byte)90,(byte)90,(byte)90,(byte)255));
             }
@@ -599,6 +644,7 @@ public class Game
         DrawHUD();
 
         if (_craftingOpen) DrawCraftingUI();
+        if (_pauseOpen)    DrawPauseScreen();
         if (_gameOver)     DrawGameOver();
 
         EndDrawing();
@@ -699,6 +745,16 @@ public class Game
             {
                 DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)80,(byte)200,(byte)80,(byte)255));
                 DrawText("GUN", bx+6, hotbarY+14, 12, Color.White);
+            }
+            else if (slot.blockId == 249)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)90,(byte)90,(byte)95,(byte)255));
+                DrawText("HATC", bx+2, hotbarY+14, 10, Color.White);
+            }
+            else if (slot.blockId == 250)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)160,(byte)165,(byte)175,(byte)255));
+                DrawText("PICK", bx+4, hotbarY+14, 10, Color.White);
             }
             else if (slot.blockId == 252)
             {
@@ -806,6 +862,30 @@ public class Game
             DrawText(inv, sw/2 - MeasureText(inv, 16)/2, 14, 16,
                 new Color((byte)0,(byte)220,(byte)255,(byte)255));
         }
+    }
+
+    void DrawPauseScreen()
+    {
+        int sw = GetScreenWidth(), sh = GetScreenHeight();
+        DrawRectangle(0, 0, sw, sh, new Color((byte)0,(byte)0,(byte)0,(byte)160));
+
+        string title = "PAUSED";
+        DrawText(title, sw/2 - MeasureText(title,48)/2, sh/2 - 130, 48, Color.White);
+
+        string stats = $"Night {_dnc.NightCount}   Kills: {_killCount}   Deaths: {_deathCount}";
+        DrawText(stats, sw/2 - MeasureText(stats,22)/2, sh/2 - 55, 22, Color.LightGray);
+
+        int mins = (int)_timePlayed / 60, secs = (int)_timePlayed % 60;
+        string timeStr = $"Time: {mins}:{secs:D2}";
+        DrawText(timeStr, sw/2 - MeasureText(timeStr,18)/2, sh/2 - 20, 18, Color.Gray);
+
+        DrawText("ESC — Resume",
+            sw/2 - MeasureText("ESC — Resume",22)/2, sh/2 + 20, 22, Color.White);
+        DrawText("R — Restart",
+            sw/2 - MeasureText("R — Restart",22)/2, sh/2 + 50, 22, Color.White);
+        DrawText("Q — Quit Game",
+            sw/2 - MeasureText("Q — Quit Game",22)/2, sh/2 + 80, 22,
+            new Color((byte)210,(byte)70,(byte)70,(byte)255));
     }
 
     void DrawGameOver()
@@ -944,7 +1024,7 @@ public class Game
     void DrawCraftingUI()
     {
         int sw = GetScreenWidth(), sh = GetScreenHeight();
-        int pw = 440, ph = 80 + Recipes.Length * 52;
+        int pw = 440, ph = 80 + Recipes.Length * 44;
         int px = sw/2 - pw/2, py = sh/2 - ph/2;
 
         DrawRectangle(px, py, pw, ph, new Color((byte)20,(byte)15,(byte)10,(byte)230));
@@ -956,7 +1036,9 @@ public class Game
         for (int i = 0; i < Recipes.Length; i++)
         {
             var r   = Recipes[i];
-            int ry  = py + 48 + i * 52;
+            int ry  = py + 48 + i * 44;
+            if (i == _selectedRecipe)
+                DrawRectangle(px+6, ry-4, pw-12, 42, new Color((byte)60,(byte)40,(byte)15,(byte)160));
             bool can = CanAfford(r);
 
             Color nameCol = can ? Color.White : Color.Gray;
@@ -969,7 +1051,7 @@ public class Game
             DrawText(costStr, px+32, ry+22, 14, costCol);
         }
 
-        DrawText("ESC to close", px+pw/2 - MeasureText("ESC to close",13)/2, py+ph-22, 13, Color.DarkGray);
+        DrawText("↑↓ Navigate   Enter Craft   ESC Close", px+pw/2 - MeasureText("↑↓ Navigate   Enter Craft   ESC Close",12)/2, py+ph-22, 12, Color.DarkGray);
     }
 
     bool CanAfford(Recipe r)
