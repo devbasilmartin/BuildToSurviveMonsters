@@ -20,10 +20,11 @@ public class Zombie
     public bool IsBoss     { get; private set; }
     public bool IsArmoured { get; private set; }
     public bool IsCrawler  { get; private set; }
+    public bool IsShaman   { get; private set; }
     public int  XPReward   { get; private set; }
     readonly VoxelWorld _world;
 
-    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false)
+    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false, bool isShaman = false)
     {
         _world     = world;
         Position   = pos;
@@ -31,6 +32,7 @@ public class Zombie
         IsBoss     = isBoss;
         IsArmoured = isArmoured;
         IsCrawler  = isCrawler;
+        IsShaman   = isShaman;
 
         if (isBoss)
         {
@@ -38,6 +40,13 @@ public class Zombie
             _speed    = 1.4f + 0.05f * (nightCount - 5);
             _damage   = 20f;
             XPReward  = 100;
+        }
+        else if (isShaman)
+        {
+            HP = MaxHP = 120;
+            _speed    = 0.8f * (1f + 0.05f * (nightCount - 1));
+            _damage   = 0f;   // shamans don't attack directly
+            XPReward  = 30;
         }
         else if (isCrawler)
         {
@@ -139,7 +148,24 @@ public class Zombie
         if (IsDead) return;
         byte flash = (byte)(int)(_hitFlash * 200);
 
-        if (IsCrawler)
+        if (IsShaman)
+        {
+            var sc = new Color((byte)Math.Min(255,140+flash),(byte)Math.Min(255,20+flash),(byte)Math.Min(255,200+flash),(byte)255);
+            DrawCube(Position + new Vector3(0, 1.2f, 0), 0.38f, 2.0f, 0.38f, sc);   // tall body
+            DrawCube(Position + new Vector3(0, 2.4f, 0), 0.32f, 0.32f, 0.32f, sc);  // head
+            DrawCube(Position + new Vector3(0, 2.75f, 0), 0.28f, 0.38f, 0.28f,
+                new Color((byte)60,(byte)5,(byte)100,(byte)255));                      // pointed hat
+            // Pulsing healing orb
+            float t = (float)GetTime();
+            byte ga = (byte)(int)(Math.Abs(MathF.Sin(t * 2.5f)) * 160 + 60);
+            DrawSphere(Position + new Vector3(0, 3.3f, 0), 0.12f,
+                new Color((byte)50,(byte)220,(byte)80,ga));
+            // HP bar
+            float sf = (float)HP / MaxHP;
+            DrawCube(Position + new Vector3(0, 3.7f, 0), 0.5f, 0.08f, 0.06f, Color.DarkGray);
+            DrawCube(Position + new Vector3(-0.25f+0.25f*sf, 3.7f, 0), 0.5f*sf, 0.08f, 0.07f, Color.Green);
+        }
+        else if (IsCrawler)
         {
             var cCol = new Color((byte)Math.Min(255, 90+flash), (byte)Math.Min(255, 45+flash), (byte)Math.Min(255, 10+flash), (byte)255);
             DrawCube(Position + new Vector3(0, 0.2f, 0), 0.5f, 0.38f, 0.5f, cCol);  // flat body

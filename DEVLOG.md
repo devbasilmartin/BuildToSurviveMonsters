@@ -6,6 +6,31 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 17 — Shaman, Loot Drops, Crafting Scroll, New Recipes  *(2026-06-21)*
+
+**Zombie Shaman** (night 6+, 1 per wave)
+- Tall purple wizard with pointed hat and pulsing green healing orb
+- Heals nearby zombies (4-unit radius) at 5 HP/s (via 0.2s tick of +1 HP)
+- 120 HP, 0.8 speed (slow but tanky), doesn't attack directly, 30 XP on kill
+- Bullet hitboxes: tall body at y+1.2 r=0.4, head at y+2.4 r=0.22
+- Shows bright purple on minimap — high-priority target indicator
+- Bug fix: healing uses timer-based tick (float accumulation was flooring to 0 at 60fps)
+
+**Zombie loot drops**
+- 15% chance on any kill: drops 1-2 iron OR 1 food to player inventory
+- Silently added — players notice their counts growing over a night
+
+**Crafting UI scrolling** (needed for 16 recipes at 720p)
+- Shows 10 recipes at a time; ↑↓ auto-scrolls window to keep selection visible
+- Number keys 1-9 reference visible rows (not absolute indices)
+- Footer shows "8-17/16" range indicator when scrolled
+
+**New crafting recipes** (now 16 total)
+- **Large Medpack**: 5 food → +75 HP (vs Bandage's 25)
+- **Iron Ration**: 3 wood + 1 iron → +80 Hunger, +50 Thirst (emergency bulk restore)
+
+---
+
 ## Sprint 16 — Turret Block, Wave Cap, Overeating  *(2026-06-21)*
 
 **Turret Block** (blockId 20, hotbar slot 7)
@@ -372,6 +397,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Turret upgrades: Iron Turret (more range/damage) from crafting
-- [ ] Zombie shaman: rare zombie that heals nearby zombies passively
-- [ ] Loot from zombies: rare drops of iron or food on kill
+- [ ] Turret upgrade crafting: Fast Turret (fires every 0.8s, 3 iron + 3 stone)
+- [ ] Day/night weather: rain slows player movement and extinguishes campfires
+- [ ] Achievement system: "Survived 10 nights", "Kill 100 zombies", displayed in pause screen

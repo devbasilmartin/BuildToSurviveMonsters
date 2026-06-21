@@ -16,8 +16,9 @@ public class Game
 
     bool    _gameOver          = false;
     bool    _craftingOpen      = false;
-    bool    _pauseOpen         = false;
-    int     _selectedRecipe    = 0;
+    bool    _pauseOpen          = false;
+    int     _selectedRecipe     = 0;
+    int     _recipeScrollOffset = 0;
     float   _timePlayed        = 0f;
     public  bool ShouldQuit    = false;
     float   _gunRecoil         = 0f;
@@ -43,6 +44,7 @@ public class Game
     float   _daySummaryTimer   = 0f;
     float   _turretTimer       = 0f;
     float   _turretFlashTimer  = 0f;
+    float   _shamanHealTimer   = 0f;
     Vector3 _turretFlashPos;
     int     _nightKills        = 0;
     int     _xpBeforeNight     = 0;
@@ -85,6 +87,8 @@ public class Game
         new("Healing Amulet",  -8,  1, new[]{ new Ingredient(8,3), new Ingredient(2,2) },  RequiredLevel:3),
         new("Explosive",       -9,  1, new[]{ new Ingredient(8,2), new Ingredient(3,3) },  RequiredLevel:4),
         new("Steel Sword",    248,  1, new[]{ new Ingredient(8,2), new Ingredient(2,3) },  RequiredLevel:5),
+        new("Large Medpack",  -10,  1, new[]{ new Ingredient(11,5) }),                       // 5 food → +75 HP
+        new("Iron Ration",    -11,  1, new[]{ new Ingredient(3,3), new Ingredient(8,1) }),  // 3 wood + 1 iron → bulk restore
     };
 
     public void Init()
@@ -237,18 +241,33 @@ public class Game
                 _craftingOpen = !_craftingOpen;
         }
 
-        // Craft: arrow-key navigation + Enter; number keys 1-9 for first 9
+        // Craft: arrow-key navigation + Enter; number keys 1-9 for visible rows
         if (_craftingOpen)
         {
+            const int Visible = 10;
             if (IsKeyPressed(KeyboardKey.Up))
+            {
                 _selectedRecipe = (_selectedRecipe - 1 + Recipes.Length) % Recipes.Length;
+                if (_selectedRecipe < _recipeScrollOffset) _recipeScrollOffset = _selectedRecipe;
+                if (_selectedRecipe >= _recipeScrollOffset + Visible) _recipeScrollOffset = _selectedRecipe - Visible + 1;
+            }
             if (IsKeyPressed(KeyboardKey.Down))
+            {
                 _selectedRecipe = (_selectedRecipe + 1) % Recipes.Length;
+                if (_selectedRecipe < _recipeScrollOffset) _recipeScrollOffset = _selectedRecipe;
+                if (_selectedRecipe >= _recipeScrollOffset + Visible) _recipeScrollOffset = _selectedRecipe - Visible + 1;
+            }
             if (IsKeyPressed(KeyboardKey.Enter) || IsKeyPressed(KeyboardKey.KpEnter))
                 TryCraft(_selectedRecipe);
-            for (int i = 0; i < Math.Min(9, Recipes.Length); i++)
-                if (IsKeyPressed(KeyboardKey.One + i)) { _selectedRecipe = i; TryCraft(i); }
-            return; // block everything else while menu is open
+            for (int i = 0; i < Math.Min(9, Visible); i++)
+            {
+                if (IsKeyPressed(KeyboardKey.One + i))
+                {
+                    int absIdx = _recipeScrollOffset + i;
+                    if (absIdx < Recipes.Length) { _selectedRecipe = absIdx; TryCraft(absIdx); }
+                }
+            }
+            return;
         }
 
         // G = throw explosive
@@ -269,6 +288,23 @@ public class Game
         // Spike traps: damage zombies standing on them every 0.5s
         _spikeTimer += dt;
         if (_spikeTimer >= 0.5f) { _spikeTimer = 0f; UpdateSpikeTraps(); }
+
+        // Shaman aura: heal nearby zombies 1 HP every 0.2s (= 5 HP/s)
+        _shamanHealTimer += dt;
+        if (_shamanHealTimer >= 0.2f)
+        {
+            _shamanHealTimer = 0f;
+            foreach (var shaman in _waves.Active)
+            {
+                if (!shaman.IsShaman || shaman.IsDead) continue;
+                foreach (var z in _waves.Active)
+                {
+                    if (z.IsDead || z == shaman) continue;
+                    if (Vector3.Distance(shaman.Position, z.Position) < 4f)
+                        z.HP = Math.Min(z.MaxHP, z.HP + 1);
+                }
+            }
+        }
 
         // Invincibility countdown
         if (_invincibleTimer > 0)
@@ -476,6 +512,21 @@ public class Game
         }
         _player.XP += z.XPReward;
         CheckLevelUp();
+
+        // 15% loot drop: iron or food
+        if (_rng.Next(100) < 15)
+        {
+            if (_rng.Next(2) == 0)
+            {
+                _player.Inventory.TryGetValue(8, out int curI);
+                _player.Inventory[8] = curI + _rng.Next(1, 3);
+            }
+            else
+            {
+                _player.Inventory.TryGetValue(11, out int curF);
+                _player.Inventory[11] = curF + 1;
+            }
+        }
     }
 
     void CheckLevelUp()
@@ -530,7 +581,12 @@ public class Game
                     else if (z.IsCrawler)
                     {
                         hitBody = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 0.2f, 0)) < 0.28f;
-                        hitHead = false; // crawlers have no separate head hitbox
+                        hitHead = false;
+                    }
+                    else if (z.IsShaman)
+                    {
+                        hitBody = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 1.2f, 0)) < 0.4f;
+                        hitHead = Vector3.Distance(b.Pos, z.Position + new Vector3(0, 2.4f, 0)) < 0.22f;
                     }
                     else
                     {
@@ -652,6 +708,15 @@ public class Game
         {
             _player.Explosives++;
         }
+        else if (r.OutputId == -10)
+        {
+            _player.HP = Math.Min(_player.MaxHP, _player.HP + 75);
+        }
+        else if (r.OutputId == -11)
+        {
+            _player.Hunger = Math.Min(100f, _player.Hunger + 80f);
+            _player.Thirst = Math.Min(100f, _player.Thirst + 50f);
+        }
         else if (r.OutputId >= 248)
         {
             // Weapon/tool — put in first empty hotbar slot
@@ -683,8 +748,9 @@ public class Game
         _spikeTimer       = 0f;
         _mmDirty          = true;
         _mmAge            = 0f;
-        _pauseOpen        = false;
-        _selectedRecipe   = 0;
+        _pauseOpen            = false;
+        _selectedRecipe       = 0;
+        _recipeScrollOffset   = 0;
         _timePlayed       = 0f;
         _levelUpTimer     = 0f;
         _waveBannerTimer  = 0f;
@@ -1334,6 +1400,7 @@ public class Game
             int zdz = (int)(z.Position.Z - pczd) + MM_RANGE;
             if (zdx < 0 || zdx >= MM_RANGE*2 || zdz < 0 || zdz >= MM_RANGE*2) continue;
             Color dot = z.IsBoss     ? Color.Magenta
+                      : z.IsShaman   ? new Color((byte)180,(byte)50,(byte)255,(byte)255)
                       : z.IsArmoured ? new Color((byte)160,(byte)165,(byte)180,(byte)255)
                       : z.IsCrawler  ? new Color((byte)150,(byte)80,(byte)20,(byte)255)
                       : Color.Red;
@@ -1396,7 +1463,8 @@ public class Game
     void DrawCraftingUI()
     {
         int sw = GetScreenWidth(), sh = GetScreenHeight();
-        int pw = 440, ph = 80 + Recipes.Length * 44;
+        const int CraftVisible = 10;
+        int pw = 440, ph = 80 + Math.Min(CraftVisible, Recipes.Length) * 44;
         int px = sw/2 - pw/2, py = sh/2 - ph/2;
 
         DrawRectangle(px, py, pw, ph, new Color((byte)20,(byte)15,(byte)10,(byte)230));
@@ -1405,10 +1473,12 @@ public class Game
             new Color((byte)220,(byte)160,(byte)60,(byte)255));
         DrawLine(px+10, py+38, px+pw-10, py+38, new Color((byte)100,(byte)70,(byte)30,(byte)255));
 
-        for (int i = 0; i < Recipes.Length; i++)
+        int end = Math.Min(_recipeScrollOffset + CraftVisible, Recipes.Length);
+        for (int i = _recipeScrollOffset; i < end; i++)
         {
             var r   = Recipes[i];
-            int ry   = py + 48 + i * 44;
+            int displayRow = i - _recipeScrollOffset;
+            int ry   = py + 48 + displayRow * 44;
             bool locked = _player.Level < r.RequiredLevel;
             if (i == _selectedRecipe)
                 DrawRectangle(px+6, ry-4, pw-12, 42,
@@ -1417,7 +1487,7 @@ public class Game
             bool can = !locked && CanAfford(r);
 
             Color nameCol = locked ? Color.DarkGray : (can ? Color.White : Color.Gray);
-            string prefix = i < 9 ? $"[{i+1}]" : "[ ]";
+            string prefix = displayRow < 9 ? $"[{displayRow+1}]" : "[ ]";
             DrawText($"{prefix}  {r.Name}", px+16, ry, 18, nameCol);
 
             if (locked)
@@ -1432,7 +1502,10 @@ public class Game
             }
         }
 
-        DrawText("↑↓ Navigate   Enter Craft   ESC Close", px+pw/2 - MeasureText("↑↓ Navigate   Enter Craft   ESC Close",12)/2, py+ph-22, 12, Color.DarkGray);
+        string footer = Recipes.Length > CraftVisible
+            ? $"↑↓ Navigate ({_recipeScrollOffset+1}-{Math.Min(_recipeScrollOffset+CraftVisible, Recipes.Length)}/{Recipes.Length})   Enter Craft   ESC Close"
+            : "↑↓ Navigate   Enter Craft   ESC Close";
+        DrawText(footer, px+pw/2 - MeasureText(footer,11)/2, py+ph-22, 11, Color.DarkGray);
     }
 
     bool CanAfford(Recipe r)
