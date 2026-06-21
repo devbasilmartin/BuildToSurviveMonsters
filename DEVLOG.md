@@ -6,6 +6,25 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 10 — XP/Level System, Ponds, More Iron  *(2026-06-21)*
+
+**XP / Level system**
+- Kill XP: normal zombie = 10, runner = 15, boss = 100 (stored as `Zombie.XPReward`)
+- 5 levels; thresholds: 50, 150, 300, 500, 750 XP (cumulative)
+- Each level up: +15 MaxHP, heal 15 HP
+- Gold "LEVEL UP! Level N +15 Max HP" banner fades for 3 seconds
+- Compact XP progress bar above hunger bars; shows "Lv.N X/Y XP"; gold "Lv.MAX" at cap
+- `CheckLevelUp()` recurses in case multiple thresholds cross in one boss kill
+
+**World variety**
+- Iron ore: 3 deposits per world (was 1) — much more accessible
+- Ponds: 2 ponds per world — 5×5 water (non-solid, id 19) + 7×7 sand (id 18) shore ring
+- Water (19): non-solid, non-minable (raycast skips it); shows blue on minimap
+- Sand (18): solid, low-HP, no drops; shows golden on minimap
+- Minimap MinimapSurface: water detected before IsSolid skip so ponds show as blue
+
+---
+
 ## Sprint 9 — Pause Screen, Pickaxe Tools, Crafting Navigation  *(2026-06-21)*
 
 **Pause screen** (ESC when not crafting)
@@ -220,6 +239,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] More world variety: rivers, larger ore deposits, biome variation
-- [ ] Armor stand: display equipped armor set visually in base
-- [ ] XP/level system: gain XP on kills, level unlocks stat boosts
+- [ ] Level-up bonus variety: every other level gives speed boost instead of MaxHP
+- [ ] Larger world: increase from 128×128 to 256×256 for more exploration
+- [ ] Wave preview: show upcoming wave composition at night start

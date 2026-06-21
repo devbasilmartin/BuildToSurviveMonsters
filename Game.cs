@@ -32,7 +32,11 @@ public class Game
     float   _bossWarningTimer  = 0f;
     float   _invincibleTimer   = 0f;
     float   _spikeTimer        = 0f;
+    float   _levelUpTimer      = 0f;
+    string  _levelUpMsg        = "";
     Vector3 _spawnPos;
+
+    static readonly int[] LevelThresholds = { 50, 150, 300, 500, 750 };
 
     // Minimap cache
     const int MM_RANGE = 20;
@@ -228,6 +232,9 @@ public class Game
         // Boss warning timer
         if (_bossWarningTimer > 0) _bossWarningTimer -= dt;
 
+        // Level-up banner timer
+        if (_levelUpTimer > 0) _levelUpTimer -= dt;
+
         // Minimap refresh
         _mmAge += dt;
         if (_mmAge >= 1f) { _mmAge = 0f; _mmDirty = true; }
@@ -314,6 +321,21 @@ public class Game
             _player.Inventory.TryGetValue(8, out int iron);
             _player.Inventory[8] = iron + 5;
         }
+        _player.XP += z.XPReward;
+        CheckLevelUp();
+    }
+
+    void CheckLevelUp()
+    {
+        if (_player.Level >= LevelThresholds.Length) return;
+        if (_player.XP < LevelThresholds[_player.Level]) return;
+        _player.Level++;
+        _player.MaxHP += 15;
+        _player.HP = Math.Min(_player.HP + 15, _player.MaxHP);
+        _levelUpMsg   = $"LEVEL UP!  Level {_player.Level}  +15 Max HP";
+        _levelUpTimer = 3f;
+        // Recurse in case multiple thresholds crossed in one kill
+        CheckLevelUp();
     }
 
     void UpdateBullets(float dt)
@@ -487,6 +509,7 @@ public class Game
         _pauseOpen        = false;
         _selectedRecipe   = 0;
         _timePlayed       = 0f;
+        _levelUpTimer     = 0f;
         Init();
         _gameOver = false;
     }
@@ -658,6 +681,19 @@ public class Game
         DrawLine(sw/2 - 10, sh/2, sw/2 + 10, sh/2, Color.White);
         DrawLine(sw/2, sh/2 - 10, sw/2, sh/2 + 10, Color.White);
 
+        // XP bar
+        {
+            bool maxed = _player.Level >= LevelThresholds.Length;
+            int nextXP = maxed ? LevelThresholds[^1] : LevelThresholds[_player.Level];
+            float xpFrac = maxed ? 1f : Math.Min(1f, _player.XP / (float)nextXP);
+            DrawRectangle(10, sh - 95, 160, 10, Color.DarkGray);
+            DrawRectangle(10, sh - 95, (int)(160f * xpFrac), 10,
+                new Color((byte)100,(byte)200,(byte)100,(byte)255));
+            string xpLabel = maxed ? "Lv.MAX" : $"Lv.{_player.Level}  {_player.XP}/{nextXP} XP";
+            DrawText(xpLabel, 176, sh - 96, 12,
+                maxed ? new Color((byte)255,(byte)215,(byte)0,(byte)255) : Color.LightGray);
+        }
+
         // Hunger bar
         DrawRectangle(10, sh - 72, 160, 13, Color.DarkGray);
         DrawRectangle(10, sh - 72, (int)(160f * _player.Hunger / 100f), 13,
@@ -824,6 +860,17 @@ public class Game
                       : Color.Gray;
         DrawText(hint, 10, sh - 18, 12, hintCol);
 
+        // Level-up banner
+        if (_levelUpTimer > 0)
+        {
+            byte alpha = (byte)(int)(Math.Min(1f, _levelUpTimer) * 255);
+            int luw = MeasureText(_levelUpMsg, 26);
+            DrawRectangle(sw/2 - luw/2 - 14, sh/2 + 50, luw + 28, 42,
+                new Color((byte)0,(byte)0,(byte)0,(byte)(alpha/2)));
+            DrawText(_levelUpMsg, sw/2 - luw/2, sh/2 + 58, 26,
+                new Color((byte)255,(byte)215,(byte)0,alpha));
+        }
+
         // Wave cleared banner
         if (_clearBannerTimer > 0)
         {
@@ -982,6 +1029,9 @@ public class Game
         for (int y = Math.Min(_world.SizeY - 1, 20); y >= 0; y--)
         {
             byte b = _world.GetVoxel(x, y, z);
+            if (b == 0) continue;
+            // Show non-solid special blocks before skipping
+            if (b == 19) return new Color((byte)30,(byte)100,(byte)200,(byte)255); // water
             if (!_world.IsSolid(x, y, z)) continue;
             return b switch {
                 1        => new Color((byte)120,(byte)72,(byte)0,(byte)255),
@@ -993,6 +1043,7 @@ public class Game
                 10 or 14 or 15
                          => new Color((byte)220,(byte)160,(byte)30,(byte)255),
                 13       => new Color((byte)200,(byte)80,(byte)20,(byte)255),
+                18       => new Color((byte)210,(byte)180,(byte)100,(byte)255), // sand
                 4 or 5 or 12
                          => new Color((byte)180,(byte)180,(byte)200,(byte)255),
                 _        => new Color((byte)70,(byte)70,(byte)80,(byte)255),

@@ -277,6 +277,8 @@ public class Player
     public float Hunger     = 100f;
     public float Thirst     = 100f;
     public bool  Invincible = false;
+    public int   XP         = 0;
+    public int   Level      = 0;
 
     public bool IsMeleeSelected  => HotbarBlocks[SelectedSlot].blockId is 252 or 253 or 254;
     public bool IsWeaponSelected => IsGunSelected || IsMeleeSelected;

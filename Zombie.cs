@@ -17,7 +17,8 @@ public class Zombie
     float _hitFlash    = 0f;  // 0..1, set to 1 on hit, decays
     bool  _isRunner;
 
-    public bool IsBoss { get; private set; }
+    public bool IsBoss    { get; private set; }
+    public int  XPReward  { get; private set; }
     readonly VoxelWorld _world;
 
     public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false)
@@ -30,16 +31,18 @@ public class Zombie
         if (isBoss)
         {
             HP = MaxHP = 600 + nightCount * 40;
-            _speed  = 1.4f + 0.05f * (nightCount - 5);
-            _damage = 20f;
+            _speed    = 1.4f + 0.05f * (nightCount - 5);
+            _damage   = 20f;
+            XPReward  = 100;
         }
         else
         {
             float scale = 1f + 0.1f * nightCount;
             float speedScale = 1f + 0.07f * (nightCount - 1);
             HP = MaxHP = (int)((isRunner ? 30 : 60) * scale);
-            _speed  = (isRunner ? 3.8f : 1.5f) * speedScale;
-            _damage = (isRunner ? 8 : 10) * scale;
+            _speed    = (isRunner ? 3.8f : 1.5f) * speedScale;
+            _damage   = (isRunner ? 8 : 10) * scale;
+            XPReward  = isRunner ? 15 : 10;
         }
     }
 

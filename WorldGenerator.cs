@@ -59,21 +59,43 @@ public static class WorldGenerator
             SetIfAir(world, cx,   sy2+1, cz,   2); // single cap — off-centre, looks natural
         }
 
-        // ── Iron ore (1 = trees/40) — horizontal vein mostly buried ──
-        // Looks like orange crust poking through the ground, not a column
-        for (int i = 0; i < 1; i++)
+        // ── Iron ore deposits (3) — horizontal vein mostly buried ──
+        for (int i = 0; i < 3; i++)
         {
             int cx = rng.Next(4, sx - 4);
             int cz = rng.Next(4, sz - 4);
             int surface = SurfaceY(world, cx, cz);
 
-            // 3 blocks underground (replace stone only)
             SetIfSolid(world, cx-1, surface-1, cz,   7);
             SetIfSolid(world, cx,   surface-1, cz,   7);
             SetIfSolid(world, cx+1, surface-1, cz,   7);
-            // 2 blocks at surface as visible crust
             SetIfAir  (world, cx,   surface,   cz,   7);
             SetIfAir  (world, cx+1, surface,   cz,   7);
+        }
+
+        // ── Ponds (2): water + sand shore ────────────────────────────
+        for (int i = 0; i < 2; i++)
+        {
+            int pcx = rng.Next(10, sx - 10);
+            int pcz = rng.Next(10, sz - 10);
+            int pcy = SurfaceY(world, pcx, pcz);
+
+            // Water in 5×5 centre
+            for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                if (world.InBounds(pcx+dx, pcy, pcz+dz))
+                    world.SetVoxel(pcx+dx, pcy, pcz+dz, 19);
+
+            // Sand shore ring (7×7 excluding centre)
+            for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+            {
+                if (Math.Abs(dx) <= 2 && Math.Abs(dz) <= 2) continue;
+                int lx = pcx+dx, lz = pcz+dz;
+                int ly = SurfaceY(world, lx, lz);
+                if (world.InBounds(lx, ly, lz))
+                    world.SetVoxel(lx, ly, lz, 18);
+            }
         }
 
         // ── Crafting table near world centre ─────────────────────────

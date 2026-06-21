@@ -32,8 +32,10 @@ public static class Blocks
         new("SupplyCrate",   new Color( 50, 180, 180, 255), 999, false, 0, 0, 0),  // 15 supply loot crate
         new("Torch",         new Color(255, 200,  40, 255),   1, true,  3, 1, 1),  // 16 cosmetic, non-solid
         new("SpikeTrap",     new Color( 60,  60,  70, 255),   3, true,  2, 1, 1),  // 17 non-solid, damages zombies
+        new("Sand",          new Color(210, 180, 100, 255),   1, false, 0, 0, 0),  // 18 solid, no drop
+        new("Water",         new Color( 30, 100, 200, 255), 999, false, 0, 0, 0),  // 19 non-solid, indestructible
     };
 
     public static BlockDef Get(byte id) => id < All.Length ? All[id] : All[0];
-    public static bool IsSolid(byte id) => id != 0 && id != 8 && id != 11 && id != 16 && id != 17;
+    public static bool IsSolid(byte id) => id != 0 && id != 8 && id != 11 && id != 16 && id != 17 && id != 19;
 }
