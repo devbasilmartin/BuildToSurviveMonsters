@@ -175,29 +175,41 @@ public class Game
         foreach (var b in _bullets)
             DrawSphere(b.Pos, 0.07f, new Color((byte)255,(byte)220,(byte)50,(byte)255));
 
-        // Gun viewmodel (drawn in 3D space, offset from eye)
-        if (_player.IsGunSelected)
+        // Viewmodel
         {
             Vector3 fwd   = _player.Forward;
             Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, fwd));
             Vector3 up    = Vector3.Cross(fwd, right);
-            float   kick  = _gunRecoil * 0.12f;
-            Vector3 gunBase = _player.EyePos
-                + right * 0.22f
-                - up    * 0.18f
-                + fwd   * (0.45f - kick)
-                + up    * (kick * 0.5f);
 
-            // Body
-            DrawCube(gunBase, 0.07f, 0.07f, 0.22f, new Color((byte)60,(byte)60,(byte)60,(byte)255));
-            // Barrel extension
-            DrawCube(gunBase + fwd * 0.18f, 0.04f, 0.04f, 0.14f, new Color((byte)40,(byte)40,(byte)40,(byte)255));
-            // Grip
-            DrawCube(gunBase - up * 0.07f - fwd * 0.05f, 0.06f, 0.1f, 0.06f, new Color((byte)80,(byte)50,(byte)30,(byte)255));
-            // Muzzle flash
-            if (_gunRecoil > 0.8f)
-                DrawCube(gunBase + fwd * 0.28f, 0.12f, 0.12f, 0.06f,
-                    new Color((byte)255,(byte)220,(byte)50,(byte)200));
+            if (_player.IsGunSelected)
+            {
+                float   kick    = _gunRecoil * 0.12f;
+                Vector3 gunBase = _player.EyePos
+                    + right * 0.22f - up * 0.18f
+                    + fwd * (0.45f - kick) + up * (kick * 0.5f);
+
+                DrawCube(gunBase, 0.07f, 0.07f, 0.22f, new Color((byte)60,(byte)60,(byte)60,(byte)255));
+                DrawCube(gunBase + fwd * 0.18f, 0.04f, 0.04f, 0.14f, new Color((byte)40,(byte)40,(byte)40,(byte)255));
+                DrawCube(gunBase - up * 0.07f - fwd * 0.05f, 0.06f, 0.1f, 0.06f, new Color((byte)80,(byte)50,(byte)30,(byte)255));
+                if (_gunRecoil > 0.8f)
+                    DrawCube(gunBase + fwd * 0.28f, 0.12f, 0.12f, 0.06f, new Color((byte)255,(byte)220,(byte)50,(byte)200));
+            }
+            else
+            {
+                // Pickaxe viewmodel
+                Vector3 pickBase = _player.EyePos
+                    + right * 0.24f - up * 0.22f + fwd * 0.42f;
+
+                // Handle (wood)
+                DrawCube(pickBase, 0.04f, 0.04f, 0.38f,
+                    new Color((byte)101,(byte)67,(byte)33,(byte)255));
+                // Head cross-bar (stone)
+                DrawCube(pickBase + fwd * 0.2f + up * 0.03f, 0.22f, 0.055f, 0.055f,
+                    new Color((byte)128,(byte)128,(byte)128,(byte)255));
+                // Pick point (dark, angled down)
+                DrawCube(pickBase + fwd * 0.26f - up * 0.05f, 0.04f, 0.12f, 0.04f,
+                    new Color((byte)90,(byte)90,(byte)90,(byte)255));
+            }
         }
 
         EndMode3D();
