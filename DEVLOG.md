@@ -6,6 +6,32 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 24 — Prestige, Ruins, Ore Caves, Gigant Slayer  *(2026-06-21)*
+
+**Prestige system** (P key at max level 8)
+- First P: 3-second confirmation prompt appears; second P within that time confirms
+- Prestige: XP and Level reset to 0; all other stats (MaxHP, speed, armor) kept
+- Each prestige permanently adds +10 to all damage (bullets + melee) this session
+- "PRESTIGE N! +10 Damage" gold banner for 4 seconds on confirm
+- ★N prefix shown in XP bar label; "Lv.MAX → P to prestige" hint shown when maxed
+- _prestigeLevel is session-persistent (NOT reset on R-restart)
+
+**Gigant Slayer achievement** (#14)
+- Unlocks when player kills a Gigant zombie (any weapon)
+- `_gigantKilled` flag set in AwardKill when z.IsGigant; resets on restart
+
+**World ruins** (2 per world)
+- 5×5 perimeter of StoneWall blocks, 1-3 blocks tall, with 25% random gaps for a ruined look
+- Mineable (StoneWall MaxHP=20) — ruins are a source of stone wall blocks
+- Show as light-grey wall color on minimap
+
+**Underground ore caves** (2 per world)
+- Hollow ellipsoid carved underground at y=0-2; 25% of adjacent stone blocks replaced with iron ore
+- Rewards players who mine down with concentrated iron deposits
+- Cave iron ore also detectable on minimap if close enough
+
+---
+
 ## Sprint 23 — Zombie Gigant, Screen Shake, Level Cap x8  *(2026-06-21)*
 
 **Zombie Gigant** (night 8+; guaranteed from night 10, ~33% chance 8-9)
@@ -536,6 +562,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] "Gigant Slayer" achievement: kill a Gigant zombie
-- [ ] Prestige system: reset at level 8 for permanent passive bonus
-- [ ] More world features: ruins/structure spawn, ore cave underground
+- [ ] Cave entrance marker above underground caves (visible from surface)
+- [ ] Prestige badge shown on game-over screen ("★N Prestige")
+- [ ] New zombie: Ghost — phases through walls, can only be hit by melee

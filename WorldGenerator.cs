@@ -98,6 +98,54 @@ public static class WorldGenerator
             }
         }
 
+        // ── Stone ruins (2) — collapsed walls ────────────────────────
+        for (int i = 0; i < 2; i++)
+        {
+            int rrx = rng.Next(10, sx - 10);
+            int rrz = rng.Next(10, sz - 10);
+            int rry = SurfaceY(world, rrx, rrz) + 1;
+            for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+            {
+                if (Math.Abs(dx) != 2 && Math.Abs(dz) != 2) continue; // perimeter only
+                if (rng.Next(4) == 0) continue; // 25% gap = ruined look
+                int wallH = 1 + rng.Next(3);
+                for (int h = 0; h < wallH; h++)
+                    if (world.InBounds(rrx+dx, rry+h, rrz+dz))
+                        world.SetVoxel(rrx+dx, rry+h, rrz+dz, 5);
+            }
+        }
+
+        // ── Underground ore caves (2) ─────────────────────────────────
+        for (int i = 0; i < 2; i++)
+        {
+            int ccx = rng.Next(8, sx - 8);
+            int ccz = rng.Next(8, sz - 8);
+            int ccy = rng.Next(0, 3); // deep underground
+            // Carve hollow ellipsoid
+            for (int dx = -3; dx <= 3; dx++)
+            for (int dy = -2; dy <= 2; dy++)
+            for (int dz = -3; dz <= 3; dz++)
+            {
+                if (dx*dx + dy*dy*1.5f + dz*dz >= 8f) continue;
+                int wx = ccx+dx, wy = ccy+dy, wz = ccz+dz;
+                if (world.InBounds(wx, wy, wz)) world.SetVoxel(wx, wy, wz, 0);
+            }
+            // Iron ore on cave walls
+            for (int dx = -4; dx <= 4; dx++)
+            for (int dy = -3; dy <= 3; dy++)
+            for (int dz = -4; dz <= 4; dz++)
+            {
+                int wx = ccx+dx, wy = ccy+dy, wz = ccz+dz;
+                if (!world.InBounds(wx, wy, wz)) continue;
+                if (world.GetVoxel(wx, wy, wz) != 2) continue; // stone only
+                bool edge = world.GetVoxel(wx+1,wy,wz)==0 || world.GetVoxel(wx-1,wy,wz)==0
+                          ||world.GetVoxel(wx,wy,wz+1)==0 || world.GetVoxel(wx,wy,wz-1)==0
+                          ||world.GetVoxel(wx,wy+1,wz)==0 || world.GetVoxel(wx,wy-1,wz)==0;
+                if (edge && rng.Next(4) == 0) world.SetVoxel(wx, wy, wz, 7);
+            }
+        }
+
         // ── Crafting table near world centre ─────────────────────────
         int wcx = sx / 2 + 4, wcz = sz / 2 + 4;
         int tableY = SurfaceY(world, wcx, wcz) + 1;

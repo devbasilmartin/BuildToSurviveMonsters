@@ -21,6 +21,10 @@ public class Game
     int     _recipeScrollOffset   = 0;
     bool    _bossKilled           = false;
     bool    _meleeKillMade        = false;
+    bool    _gigantKilled         = false;
+    int     _prestigeLevel        = 0;   // session-persistent: NOT reset in Restart
+    float   _prestigeConfirmTimer = 0f;
+    float   _prestigeBannerTimer  = 0f;
     int     _itemsCrafted         = 0;
     float   _achieveBannerTimer   = 0f;
     string  _achieveBannerMsg     = "";
@@ -154,6 +158,7 @@ public class Game
             new() { Name="Hoarder",          Description="Hold 50+ ammo at once" },
             new() { Name="Untouchable",      Description="Survive a full respawn invincibility" },
             new() { Name="Combo King",       Description="Reach x10 melee combo in one night" },
+            new() { Name="Gigant Slayer",    Description="Kill a Gigant zombie" },
         };
 
         // Day/night
@@ -360,6 +365,26 @@ public class Game
                 }
             }
             return;
+        }
+
+        // Prestige (P key when max level)
+        if (_prestigeConfirmTimer > 0) _prestigeConfirmTimer -= dt;
+        if (_prestigeBannerTimer  > 0) _prestigeBannerTimer  -= dt;
+        if (IsKeyPressed(KeyboardKey.P) && _player.Level >= LevelThresholds.Length)
+        {
+            if (_prestigeConfirmTimer > 0)
+            {
+                // Confirmed
+                _prestigeLevel++;
+                _player.Level = 0;
+                _player.XP    = 0;
+                _prestigeConfirmTimer = 0f;
+                _prestigeBannerTimer  = 4f;
+            }
+            else
+            {
+                _prestigeConfirmTimer = 3f; // 3 seconds to confirm
+            }
         }
 
         // G = throw explosive
@@ -577,7 +602,8 @@ public class Game
     {
         byte wid  = _player.HotbarBlocks[_player.SelectedSlot].blockId;
         int  dmg  = (int)((wid == 248 ? 200 : wid == 252 ? 150 : wid == 254 ? 80 : 35)
-                         * _player.MeleeDamageMultiplier);
+                         * _player.MeleeDamageMultiplier)
+                  + _prestigeLevel * 10;
         float cd  = wid == 248 ? 0.35f : wid == 252 ? 0.4f : wid == 254 ? 0.5f : 0.6f;
         _meleeCooldown = cd;
         _meleeSwing    = 1f;
@@ -620,6 +646,7 @@ public class Game
         if (fromMelee)       _meleeKillMade = true;
         if (z.IsGigant)
         {
+            _gigantKilled = true;
             _player.Ammo += 10;
             _player.Inventory.TryGetValue(8,  out int gi); _player.Inventory[8]  = gi + 10;
             _player.Inventory.TryGetValue(11, out int gf); _player.Inventory[11] = gf + 10;
@@ -667,6 +694,7 @@ public class Game
         UnlockAch(11, _player.Ammo >= 50);
         UnlockAch(12, _invincibilityCompleted);
         UnlockAch(13, _maxComboNight >= 10);
+        UnlockAch(14, _gigantKilled);
     }
 
     void UnlockAch(int idx, bool condition)
@@ -749,7 +777,7 @@ public class Game
                     if (hitBody || hitHead)
                     {
                         bool wasDead = z.IsDead;
-                        int bulletDmg = z.IsArmoured ? GunDamage / 4 : GunDamage;
+                        int bulletDmg = (z.IsArmoured ? GunDamage / 4 : GunDamage) + _prestigeLevel * 10;
                         z.TakeDamage(bulletDmg);
                         if (z.IsDead && !wasDead) { AwardKill(z); }
                         dead = true;
@@ -978,6 +1006,8 @@ public class Game
         _meleeKillMade        = false;
         _itemsCrafted         = 0;
         _achieveBannerTimer   = 0f;
+        _gigantKilled         = false;
+        _prestigeConfirmTimer = 0f;
         _turretFireInterval   = 2f;
         _rainDay                  = false;
         _rainDaySurvived          = false;
@@ -1264,7 +1294,8 @@ public class Game
             DrawRectangle(10, sh - 95, 160, 10, Color.DarkGray);
             DrawRectangle(10, sh - 95, (int)(160f * xpFrac), 10,
                 new Color((byte)100,(byte)200,(byte)100,(byte)255));
-            string xpLabel = maxed ? "Lv.MAX" : $"Lv.{_player.Level}  {_player.XP}/{nextXP} XP";
+            string star = _prestigeLevel > 0 ? $"★{_prestigeLevel} " : "";
+            string xpLabel = maxed ? $"{star}Lv.MAX  P to prestige" : $"{star}Lv.{_player.Level}  {_player.XP}/{nextXP} XP";
             DrawText(xpLabel, 176, sh - 96, 12,
                 maxed ? new Color((byte)255,(byte)215,(byte)0,(byte)255) : Color.LightGray);
         }
@@ -1494,6 +1525,28 @@ public class Game
                 new Color((byte)0,(byte)0,(byte)0,(byte)(alpha/2)));
             DrawText(_levelUpMsg, sw/2 - luw/2, sh/2 + 58, 26,
                 new Color((byte)255,(byte)215,(byte)0,alpha));
+        }
+
+        // Prestige confirm prompt
+        if (_prestigeConfirmTimer > 0)
+        {
+            string pconf = "PRESTIGE! Press P again to confirm (+10 dmg, resets XP/Level)";
+            DrawRectangle(sw/2 - MeasureText(pconf,14)/2 - 8, sh/2 - 52,
+                MeasureText(pconf,14) + 16, 28, new Color(0,0,0,160));
+            DrawText(pconf, sw/2 - MeasureText(pconf,14)/2, sh/2 - 47, 14,
+                new Color((byte)255,(byte)215,(byte)0,(byte)255));
+        }
+
+        // Prestige banner
+        if (_prestigeBannerTimer > 0)
+        {
+            byte pa = (byte)(int)(Math.Min(1f, _prestigeBannerTimer) * 255);
+            string pbanner = $"PRESTIGE {_prestigeLevel}!  +10 Damage";
+            int pbw = MeasureText(pbanner, 30);
+            DrawRectangle(sw/2 - pbw/2 - 14, sh/2 - 220, pbw + 28, 48,
+                new Color((byte)0,(byte)0,(byte)0,(byte)(pa/2)));
+            DrawText(pbanner, sw/2 - pbw/2, sh/2 - 212, 30,
+                new Color((byte)255,(byte)215,(byte)0,pa));
         }
 
         // Poisoned indicator
