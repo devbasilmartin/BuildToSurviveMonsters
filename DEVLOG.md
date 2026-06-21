@@ -6,6 +6,26 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 16 — Turret Block, Wave Cap, Overeating  *(2026-06-21)*
+
+**Turret Block** (blockId 20, hotbar slot 7)
+- Place using 3 iron; auto-fires every 2 seconds at nearest zombie within 8 units
+- 20 damage per shot (only 5 vs armoured zombies — guns also weak, so plan around it)
+- Yellow muzzle flash sphere on fire; small barrel decoration drawn above the block
+- AwardKill credit given to player for turret kills
+- `DrawTurretBarrels()` runs in 3D for visible turrets; `UpdateTurrets()` scans 40×8×40 voxels every 2s
+
+**Wave count cap**
+- Total zombies per wave capped at 60 (was unbounded)
+- Affects both SpawnWave and GetWavePreview (so preview matches actual spawn)
+- Late-game remains challenging from type variety (bosses, armoured, crawlers, double-wave) not raw numbers
+
+**Overeating bonus**
+- Eating food when Hunger ≥ 90 gives +15 HP instant heal
+- Simple strategic mechanic: save food for after a campfire sit to double the benefit
+
+---
+
 ## Sprint 15 — Day Summary, Zombie Crawler  *(2026-06-21)*
 
 **Day Summary overlay**
@@ -352,6 +372,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Turret block: auto-fires at nearby zombies every 2s
-- [ ] Hunger overeat: eating at full hunger grants temporary max-HP boost
-- [ ] Night N difficulty cap: zombie count caps at a max to prevent unwinnable waves
+- [ ] Turret upgrades: Iron Turret (more range/damage) from crafting
+- [ ] Zombie shaman: rare zombie that heals nearby zombies passively
+- [ ] Loot from zombies: rare drops of iron or food on kill

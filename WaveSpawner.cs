@@ -24,7 +24,7 @@ public class WaveSpawner
     void SpawnWave()
     {
         int night     = _dnc.NightCount;
-        int total     = _baseCount + (night - 1) * 4;
+        int total     = Math.Min(60, _baseCount + (night - 1) * 4);
         int runners   = night >= 2 ? total / 3 : 0;
         int shamblers = total - runners;
         int armoured  = night >= 3 ? shamblers / 5 : 0;
@@ -76,7 +76,7 @@ public class WaveSpawner
 
     public (int shamblers, int runners, int armoured, int crawlers, bool hasBoss) GetWavePreview(int night)
     {
-        int total     = _baseCount + (night - 1) * 4;
+        int total     = Math.Min(60, _baseCount + (night - 1) * 4);
         int runners   = night >= 2 ? total / 3 : 0;
         int shamblers = total - runners;
         int armoured  = night >= 3 ? shamblers / 5 : 0;

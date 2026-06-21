@@ -41,6 +41,9 @@ public class Game
     Vector3 _explosionPos;
     bool    _fogNight          = false;
     float   _daySummaryTimer   = 0f;
+    float   _turretTimer       = 0f;
+    float   _turretFlashTimer  = 0f;
+    Vector3 _turretFlashPos;
     int     _nightKills        = 0;
     int     _xpBeforeNight     = 0;
     bool    _lastNightCleared  = false;
@@ -192,15 +195,18 @@ public class Game
         }
         if (_clearBannerTimer > 0) _clearBannerTimer -= dt;
 
-        // F = eat food
+        // F = eat food (bonus heal when eating at 90+ hunger — overfed)
         if (IsKeyPressed(KeyboardKey.F))
         {
             _player.Inventory.TryGetValue(11, out int food);
             if (food > 0)
             {
+                bool overfed = _player.Hunger >= 90f;
                 _player.Inventory[11] = food - 1;
                 _player.Hunger = Math.Min(100f, _player.Hunger + 45f);
                 _player.Thirst = Math.Min(100f, _player.Thirst + 20f);
+                if (overfed)
+                    _player.HP = Math.Min(_player.MaxHP, _player.HP + 15); // bonus heal
             }
         }
 
@@ -277,6 +283,11 @@ public class Game
         // Level-up banner timer
         if (_levelUpTimer > 0) _levelUpTimer -= dt;
 
+        // Turret auto-fire
+        _turretTimer += dt;
+        if (_turretTimer >= 2f) { _turretTimer = 0f; UpdateTurrets(); }
+        if (_turretFlashTimer > 0) _turretFlashTimer -= dt;
+
         // Wave preview banner timer
         if (_waveBannerTimer > 0) _waveBannerTimer -= dt;
 
@@ -320,6 +331,39 @@ public class Game
         _craftingOpen     = false;
         _bullets.Clear();
         _deathCount++;
+    }
+
+    void UpdateTurrets()
+    {
+        var pv = VoxelWorld.WorldToVoxel(_player.Position);
+        for (int dx = -20; dx <= 20; dx++)
+        for (int dy = -2;  dy <= 6;  dy++)
+        for (int dz = -20; dz <= 20; dz++)
+        {
+            int tx = pv.X+dx, ty = pv.Y+dy, tz = pv.Z+dz;
+            if (_world.GetVoxel(tx, ty, tz) != 20) continue;
+            var tPos = new Vector3(tx+0.5f, ty+1.5f, tz+0.5f);
+
+            // Find nearest zombie within 8 units
+            Zombie? target = null;
+            float minDist = 8f;
+            foreach (var z in _waves.Active)
+            {
+                if (z.IsDead) continue;
+                float d = Vector3.Distance(tPos, z.Position + new Vector3(0, 1f, 0));
+                if (d < minDist) { minDist = d; target = z; }
+            }
+
+            if (target != null)
+            {
+                bool wasDead = target.IsDead;
+                int tDmg = target.IsArmoured ? 5 : 20; // weak vs armour
+                target.TakeDamage(tDmg);
+                if (target.IsDead && !wasDead) AwardKill(target);
+                _turretFlashPos   = tPos;
+                _turretFlashTimer = 0.15f;
+            }
+        }
     }
 
     void ThrowExplosive()
@@ -649,6 +693,8 @@ public class Game
         _fogNight         = false;
         _daySummaryTimer  = 0f;
         _nightKills       = 0;
+        _turretTimer      = 0f;
+        _turretFlashTimer = 0f;
         Init();
         _gameOver = false;
     }
@@ -704,10 +750,16 @@ public class Game
                 new Color((byte)255,(byte)230,(byte)80,(byte)(int)(t*140)));
         }
 
-        // Campfire flames + torch glow + spike decorations
+        // Campfire flames + torch glow + spike decorations + turret barrels
         DrawCampfireFlames();
         DrawTorchGlow();
         DrawSpikeDecorations();
+        DrawTurretBarrels();
+
+        // Turret muzzle flash
+        if (_turretFlashTimer > 0)
+            DrawSphere(_turretFlashPos, 0.2f,
+                new Color((byte)255,(byte)220,(byte)60,(byte)(int)(_turretFlashTimer/0.15f*200)));
 
         // Viewmodel
         {
@@ -1031,6 +1083,11 @@ public class Game
                 DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)50,(byte)50,(byte)60,(byte)255));
                 DrawText("SPIK", bx+2, hotbarY+14, 10, new Color((byte)160,(byte)160,(byte)180,(byte)255));
             }
+            else if (slot.blockId == 20)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)40,(byte)40,(byte)55,(byte)255));
+                DrawText("TRET", bx+2, hotbarY+14, 10, new Color((byte)100,(byte)200,(byte)100,(byte)255));
+            }
             else if (slot.blockId != 0)
             {
                 var col = Blocks.Get(slot.blockId).Color;
@@ -1188,6 +1245,22 @@ public class Game
         DrawText(msg, sw/2 - MeasureText(msg, 60)/2, sh/2 - 50, 60, Color.Red);
         string sub = $"Survived {_dnc.NightCount} night(s)  |  Kills: {_killCount}  |  Press R to restart";
         DrawText(sub, sw/2 - MeasureText(sub, 24)/2, sh/2 + 30, 24, Color.White);
+    }
+
+    void DrawTurretBarrels()
+    {
+        var vp = VoxelWorld.WorldToVoxel(_player.EyePos);
+        for (int dx = -10; dx <= 10; dx++)
+        for (int dy = -2;  dy <= 6;  dy++)
+        for (int dz = -10; dz <= 10; dz++)
+        {
+            int cx = vp.X+dx, cy = vp.Y+dy, cz = vp.Z+dz;
+            if (_world.GetVoxel(cx, cy, cz) != 20) continue;
+            DrawCube(new Vector3(cx+0.5f, cy+1.18f, cz+0.5f), 0.14f, 0.28f, 0.14f,
+                new Color((byte)60,(byte)60,(byte)70,(byte)255));  // body mount
+            DrawCube(new Vector3(cx+0.5f, cy+1.46f, cz+0.5f), 0.07f, 0.22f, 0.07f,
+                new Color((byte)40,(byte)40,(byte)50,(byte)255));  // barrel
+        }
     }
 
     void DrawSpikeDecorations()
