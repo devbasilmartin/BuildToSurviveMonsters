@@ -260,8 +260,10 @@ public class Player
                 SelectedSlot = i;
     }
 
-    public int Ammo;
-    public int ArmorTier = 0; // 0=none  1=wood(-15%)  2=stone(-35%)
+    public int   Ammo;
+    public int   ArmorTier = 0; // 0=none  1=wood(-15%)  2=stone(-35%)
+    public float Hunger    = 100f;
+    public float Thirst    = 100f;
 
     public bool IsMeleeSelected => HotbarBlocks[SelectedSlot].blockId is 253 or 254;
     public bool IsWeaponSelected => IsGunSelected || IsMeleeSelected;

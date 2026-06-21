@@ -14,11 +14,13 @@ public class Game
     const int   GunDamage = 50;
     const float GunRange  = 50f;
 
-    bool  _gameOver      = false;
-    bool  _craftingOpen  = false;
-    float _gunRecoil     = 0f;
-    float _meleeSwing    = 0f;
-    float _meleeCooldown = 0f;
+    bool  _gameOver        = false;
+    bool  _craftingOpen    = false;
+    float _gunRecoil       = 0f;
+    float _meleeSwing      = 0f;
+    float _meleeCooldown   = 0f;
+    float _starvationTimer = 0f;
+    readonly Random _rng   = new();
 
     struct Bullet { public Vector3 Pos; public Vector3 Dir; public float Life; }
     readonly System.Collections.Generic.List<Bullet> _bullets = new();
@@ -84,10 +86,40 @@ public class Game
 
         _waves.Update(dt, _player);
 
-        // Crafting table: E opens/closes when nearby
+        // Hunger / Thirst drain — faster at night
+        float drainMult = _dnc.Phase == DayPhase.Night ? 1.5f : 1f;
+        _player.Hunger = Math.Max(0f, _player.Hunger - 0.22f * drainMult * dt);
+        _player.Thirst = Math.Max(0f, _player.Thirst - 0.38f * drainMult * dt);
+
+        if (_player.Hunger <= 0 || _player.Thirst <= 0)
+        {
+            _starvationTimer += dt;
+            if (_starvationTimer >= 3f) { _starvationTimer = 0f; _player.TakeDamage(3); }
+        }
+        else _starvationTimer = 0f;
+
+        // F = eat food
+        if (IsKeyPressed(KeyboardKey.F))
+        {
+            _player.Inventory.TryGetValue(11, out int food);
+            if (food > 0)
+            {
+                _player.Inventory[11] = food - 1;
+                _player.Hunger = Math.Min(100f, _player.Hunger + 45f);
+                _player.Thirst = Math.Min(100f, _player.Thirst + 20f);
+            }
+        }
+
+        // E: open loot crate first, else toggle crafting table
         bool nearTable = NearCraftingTable();
-        if (IsKeyPressed(KeyboardKey.E) && (nearTable || _craftingOpen))
-            _craftingOpen = !_craftingOpen;
+        Vector3Int? nearCrate = FindNearbyCrate();
+        if (IsKeyPressed(KeyboardKey.E))
+        {
+            if (nearCrate.HasValue)
+                OpenCrate(nearCrate.Value);
+            else if (nearTable || _craftingOpen)
+                _craftingOpen = !_craftingOpen;
+        }
         if (IsKeyPressed(KeyboardKey.Escape))
             _craftingOpen = false;
 
@@ -152,7 +184,10 @@ public class Game
             Vector3 toZ = Vector3.Normalize(z.Position - _player.Position);
             toZ = new Vector3(toZ.X, 0, toZ.Z);
             if (toZ.LengthSquared() > 0 && Vector3.Dot(fwd2D, Vector3.Normalize(toZ)) > 0.3f)
+            {
                 z.TakeDamage(dmg);
+                if (z.IsDead) _player.Ammo += _rng.Next(1, 4);
+            }
         }
     }
 
@@ -182,6 +217,7 @@ public class Game
                     if (hitBody || hitHead)
                     {
                         z.TakeDamage(GunDamage);
+                        if (z.IsDead) _player.Ammo += _rng.Next(1, 4);
                         dead = true;
                         break;
                     }
@@ -201,6 +237,30 @@ public class Game
         for (int dz = -3; dz <= 3; dz++)
             if (_world.GetVoxel(v.X+dx, v.Y+dy, v.Z+dz) == 9) return true;
         return false;
+    }
+
+    Vector3Int? FindNearbyCrate()
+    {
+        var v = VoxelWorld.WorldToVoxel(_player.Position);
+        for (int dx = -2; dx <= 2; dx++)
+        for (int dy = -1; dy <= 2; dy++)
+        for (int dz = -2; dz <= 2; dz++)
+        {
+            int cx = v.X+dx, cy = v.Y+dy, cz = v.Z+dz;
+            if (_world.GetVoxel(cx, cy, cz) == 10)
+                return new Vector3Int(cx, cy, cz);
+        }
+        return null;
+    }
+
+    void OpenCrate(Vector3Int pos)
+    {
+        _world.SetVoxel(pos.X, pos.Y, pos.Z, 0);
+        int food = _rng.Next(2, 6);
+        int ammo = _rng.Next(5, 11);
+        _player.Inventory.TryGetValue(11, out int curFood);
+        _player.Inventory[11] = curFood + food;
+        _player.Ammo += ammo;
     }
 
     void TryCraft(int index)
@@ -379,6 +439,18 @@ public class Game
         DrawLine(sw/2 - 10, sh/2, sw/2 + 10, sh/2, Color.White);
         DrawLine(sw/2, sh/2 - 10, sw/2, sh/2 + 10, Color.White);
 
+        // Hunger bar
+        DrawRectangle(10, sh - 72, 160, 13, Color.DarkGray);
+        DrawRectangle(10, sh - 72, (int)(160f * _player.Hunger / 100f), 13,
+            _player.Hunger < 25f ? Color.Red : new Color((byte)180,(byte)130,(byte)40,(byte)255));
+        DrawText("FOOD", 174, sh - 72, 12, _player.Hunger < 25f ? Color.Red : Color.Gray);
+
+        // Thirst bar
+        DrawRectangle(10, sh - 55, 160, 13, Color.DarkGray);
+        DrawRectangle(10, sh - 55, (int)(160f * _player.Thirst / 100f), 13,
+            _player.Thirst < 25f ? Color.Red : new Color((byte)40,(byte)120,(byte)200,(byte)255));
+        DrawText("H2O", 174, sh - 55, 12, _player.Thirst < 25f ? Color.Red : Color.Gray);
+
         // Health bar
         DrawRectangle(10, sh - 30, 200, 20, Color.DarkGray);
         DrawRectangle(10, sh - 30, (int)(200f * _player.HP / _player.MaxHP), 20, Color.Red);
@@ -452,6 +524,11 @@ public class Game
                 DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)160,(byte)160,(byte)165,(byte)255));
                 DrawText("SWRD", bx+2, hotbarY+14, 11, Color.White);
             }
+            else if (slot.blockId == 11)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)200,(byte)80,(byte)50,(byte)255));
+                DrawText("FOOD", bx+2, hotbarY+14, 11, Color.White);
+            }
             else if (slot.blockId != 0)
             {
                 var col = Blocks.Get(slot.blockId).Color;
@@ -461,9 +538,14 @@ public class Game
             }
         }
 
-        // Controls reminder
-        string hint = NearCraftingTable() ? "E: Open Crafting Table" : "WASD move  Mouse look  1=Gun LClick shoot  2-9 LClick mine  RClick build  F fast-fwd";
-        DrawText(hint, 10, sh - 18, 12, NearCraftingTable() ? Color.Yellow : Color.Gray);
+        // Context hint or controls
+        bool nc = NearCraftingTable();
+        bool ncr = FindNearbyCrate().HasValue;
+        string hint = ncr  ? "E: Open Loot Crate"
+                    : nc   ? "E: Open Crafting Table"
+                    : "WASD/Arrows move  LClick shoot/mine/swing  RClick build  F eat food  Space jump";
+        Color hintCol = (ncr || nc) ? Color.Yellow : Color.Gray;
+        DrawText(hint, 10, sh - 18, 12, hintCol);
     }
 
     void DrawGameOver()

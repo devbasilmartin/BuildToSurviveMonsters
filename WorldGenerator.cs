@@ -81,6 +81,16 @@ public static class WorldGenerator
         int tableY = SurfaceY(world, wcx, wcz) + 1;
         if (world.InBounds(wcx, tableY, wcz))
             world.SetVoxel(wcx, tableY, wcz, 9);
+
+        // ── Loot crates (7) spread around map ────────────────────────
+        for (int i = 0; i < 7; i++)
+        {
+            int crx = rng.Next(4, sx - 4);
+            int crz = rng.Next(4, sz - 4);
+            int cry = SurfaceY(world, crx, crz) + 1;
+            if (world.InBounds(crx, cry, crz))
+                world.SetVoxel(crx, cry, crz, 10);
+        }
     }
 
     static void SetIfAir(VoxelWorld w, int x, int y, int z, byte id)
