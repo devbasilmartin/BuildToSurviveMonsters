@@ -303,6 +303,8 @@ public class Player
     public float SpeedBonus  = 0f;
     public float HealRate    = 0f;
     public float SlowFactor              = 1f;
+    public float PoisonTimer            = 0f;
+    public bool  Poisoned               => PoisonTimer > 0;
     public int   BlocksPlaced           = 0;
     public float MeleeDamageMultiplier  = 1f;
     public int   Explosives  = 0;

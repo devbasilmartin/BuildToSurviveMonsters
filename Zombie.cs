@@ -21,10 +21,12 @@ public class Zombie
     public bool IsArmoured { get; private set; }
     public bool IsCrawler  { get; private set; }
     public bool IsShaman   { get; private set; }
+    public bool IsPoison   { get; private set; }
     public int  XPReward   { get; private set; }
+    public float SpeedMult = 1f;   // set externally for berserk night
     readonly VoxelWorld _world;
 
-    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false, bool isShaman = false)
+    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false, bool isShaman = false, bool isPoison = false)
     {
         _world     = world;
         Position   = pos;
@@ -33,6 +35,7 @@ public class Zombie
         IsArmoured = isArmoured;
         IsCrawler  = isCrawler;
         IsShaman   = isShaman;
+        IsPoison   = isPoison;
 
         if (isBoss)
         {
@@ -40,6 +43,15 @@ public class Zombie
             _speed    = 1.4f + 0.05f * (nightCount - 5);
             _damage   = 20f;
             XPReward  = 100;
+        }
+        else if (isPoison)
+        {
+            float scale = 1f + 0.1f * nightCount;
+            HP = MaxHP = (int)(40 * scale);
+            _speed      = 1.8f * (1f + 0.07f * (nightCount - 1));
+            _damage     = 3f;
+            _attackRate = 0.5f; // attacks every 2s
+            XPReward    = 12;
         }
         else if (isShaman)
         {
@@ -79,7 +91,7 @@ public class Zombie
         if (dist > 1.5f)
         {
             Vector3 dir = Vector3.Normalize(new Vector3(toPlayer.X, 0, toPlayer.Z));
-            float step = _speed * dt;
+            float step = _speed * SpeedMult * dt;
 
             // X axis: try direct, else try perpendicular slides
             float nx = Position.X + dir.X * step;
@@ -113,7 +125,11 @@ public class Zombie
             {
                 _attackTimer = 0f;
                 if (!player.Invincible)
+                {
                     player.TakeDamage((int)_damage);
+                    if (IsPoison)
+                        player.PoisonTimer = Math.Max(player.PoisonTimer, 10f);
+                }
             }
         }
     }
@@ -148,7 +164,17 @@ public class Zombie
         if (IsDead) return;
         byte flash = (byte)(int)(_hitFlash * 200);
 
-        if (IsShaman)
+        if (IsPoison)
+        {
+            var pc = new Color((byte)Math.Min(255, 40+flash), (byte)Math.Min(255, 200+flash), (byte)Math.Min(255, 60+flash), (byte)255);
+            DrawCube(Position + new Vector3(0, 0.9f, 0),  0.6f, 1.5f, 0.6f, pc);
+            DrawCube(Position + new Vector3(0, 1.85f, 0), 0.45f, 0.45f, 0.45f,
+                new Color((byte)Math.Min(255, 30+flash),(byte)Math.Min(255, 180+flash),(byte)Math.Min(255, 50+flash),(byte)255));
+            float pf = (float)HP / MaxHP;
+            DrawCube(Position + new Vector3(0, 2.6f, 0), 0.6f, 0.08f, 0.06f, Color.DarkGray);
+            DrawCube(Position + new Vector3(-0.3f+0.3f*pf, 2.6f, 0), 0.6f*pf, 0.08f, 0.07f, Color.Green);
+        }
+        else if (IsShaman)
         {
             var sc = new Color((byte)Math.Min(255,140+flash),(byte)Math.Min(255,20+flash),(byte)Math.Min(255,200+flash),(byte)255);
             DrawCube(Position + new Vector3(0, 1.2f, 0), 0.38f, 2.0f, 0.38f, sc);   // tall body

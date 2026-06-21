@@ -6,6 +6,29 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 21 — Poison Zombie, Berserk Night, Melee Combo  *(2026-06-21)*
+
+**Poison Zombie** (night 5+, ~1/8 shamblers)
+- Bright green; 40 HP, speed 1.8×scale, attacks every 2s for 3 direct damage
+- On hit: applies "POISONED" debuff for 10s → 4 HP/s DOT (timer-based to avoid float floor bug)
+- Green pulsing screen overlay while poisoned; "POISONED Ns" text indicator in HUD
+- Bright green on minimap; XP reward = 12
+
+**Berserk Night** (~12.5% chance per night)
+- All zombies spawned this wave get `SpeedMult = 2f` (applied from Game.cs after WaveSpawner fires)
+- "BERSERK!" appended to wave preview banner + on-screen text during night
+- Resets to false at day start; can combine with fog for extra chaos
+- Berserk Night and Double Wave can stack
+
+**Melee Combo counter**
+- Every melee hit increments `_meleeCombo` and resets a 1.5s timer
+- If timer expires without another hit: combo resets to 0
+- Damage bonus: (1 + 0.15 × (combo - 1)) applied to all melee damage
+- "x{N} COMBO!" displayed centre-screen when combo ≥ 2 (fades as timer runs low)
+- Stacks with Berserker's Ring multiplier for massive late-game damage
+
+---
+
 ## Sprint 20 — Lightning, Berserker Ring, Health Gem, More Achievements  *(2026-06-21)*
 
 **Lightning strikes** (during rain, every 15-30s)
@@ -466,6 +489,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Poison zombie: slow DOT attack, green visual
-- [ ] Melee attack combo counter: x2/x3 multiplier for successive hits
-- [ ] Special night events: Berserk Night (all zombies 2x speed), Blackout (no torch glow)
+- [ ] Antidote recipe: consume to cure poison
+- [ ] Blackout Night event: torches and campfires invisible (no glow)
+- [ ] Combo achievement: reach x10 combo in one night

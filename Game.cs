@@ -28,6 +28,10 @@ public class Game
 
     bool    _rainDay               = false;
     bool    _rainDaySurvived       = false;
+    bool    _berserkNight          = false;
+    int     _meleeCombo            = 0;
+    float   _meleeComboTimer       = 0f;
+    float   _poisonAccum           = 0f;
     float   _lightningTimer        = 20f;
     float   _lightningFlashTimer   = 0f;
     Vector3 _lightningPos;
@@ -164,6 +168,12 @@ public class Game
             if (c > 0) _waveBannerMsg += $"  +  {c} crawlers";
             if (b)     _waveBannerMsg += "  +  BOSS!";
             if (_fogNight) _waveBannerMsg += "   [FOG]";
+            _berserkNight = _rng.Next(8) == 0; // ~12.5% berserk
+            if (_berserkNight)
+            {
+                foreach (var z in _waves.Active) z.SpeedMult = 2f;
+                _waveBannerMsg += "   [BERSERK!]";
+            }
             if (_rng.Next(5) == 0) // 20% double wave
             {
                 _waves.ForceExtraSpawn();
@@ -179,6 +189,7 @@ public class Game
             }
             _nightCleared = false;
             _fogNight     = false;
+            _berserkNight = false;
             _rainDay      = _rng.Next(5) == 0;
             _player.SlowFactor = _rainDay ? 0.75f : 1f;
             if (_rainDay) _lightningTimer = 15f + _rng.Next(16); // 15-30s to first strike
@@ -234,6 +245,22 @@ public class Game
         // Rain slowly refills thirst
         if (_rainDay && _dnc.Phase != DayPhase.Night)
             _player.Thirst = Math.Min(100f, _player.Thirst + 0.5f * dt);
+
+        // Poison DOT
+        if (_player.PoisonTimer > 0)
+        {
+            _player.PoisonTimer -= dt;
+            _poisonAccum += 4f * dt;
+            if (_poisonAccum >= 1f)
+            {
+                int pd = (int)_poisonAccum;
+                _player.TakeDamage(pd);
+                _poisonAccum -= pd;
+            }
+        }
+
+        // Melee combo decay
+        if (_meleeComboTimer > 0) { _meleeComboTimer -= dt; if (_meleeComboTimer <= 0) _meleeCombo = 0; }
 
         // Lightning strikes during storms
         UpdateLightning(dt);
@@ -553,9 +580,12 @@ public class Game
             if (toZ.LengthSquared() > 0 && Vector3.Dot(fwd2D, Vector3.Normalize(toZ)) > 0.3f)
             {
                 bool wasDead = z.IsDead;
-                int meleeDmg = z.IsArmoured ? dmg * 2 : dmg;
+                float comboMult = 1f + 0.15f * Math.Max(0, _meleeCombo - 1);
+                int meleeDmg = (int)((z.IsArmoured ? dmg * 2 : dmg) * comboMult);
                 z.TakeDamage(meleeDmg);
                 if (z.IsDead && !wasDead) AwardKill(z, fromMelee: true);
+                _meleeCombo++;
+                _meleeComboTimer = 1.5f;
             }
         }
     }
@@ -907,6 +937,10 @@ public class Game
         _turretFireInterval   = 2f;
         _rainDay                  = false;
         _rainDaySurvived          = false;
+        _berserkNight             = false;
+        _meleeCombo               = 0;
+        _meleeComboTimer          = 0f;
+        _poisonAccum              = 0f;
         _lightningTimer           = 20f;
         _lightningFlashTimer      = 0f;
         _invincibilityCompleted   = false;
@@ -1124,6 +1158,15 @@ public class Game
         EndMode3D();
 
         if (_rainDay && _dnc.Phase != DayPhase.Night) DrawRain();
+
+        // Poison overlay
+        if (_player.Poisoned)
+        {
+            float pulse = (MathF.Sin((float)GetTime() * 4f) + 1f) * 0.5f;
+            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
+                new Color((byte)0,(byte)180,(byte)30,(byte)(int)(pulse * 35 + 8)));
+        }
+
         DrawHUD();
 
         if (_craftingOpen)            DrawCraftingUI();
@@ -1237,8 +1280,14 @@ public class Game
             weatherY -= 28;
         }
         if (_rainDay && _dnc.Phase != DayPhase.Night)
+        {
             DrawText("RAIN", sw - MM_SIZE - 10, weatherY, 20,
                 new Color((byte)100,(byte)145,(byte)215,(byte)200));
+            weatherY -= 28;
+        }
+        if (_berserkNight && _dnc.Phase == DayPhase.Night)
+            DrawText("BERSERK!", sw - MM_SIZE - 10, weatherY, 18,
+                new Color((byte)255,(byte)80,(byte)30,(byte)220));
 
         // Kill count + death count (left of minimap)
         DrawText($"Kills: {_killCount}", sw - MM_SIZE - 100, 10, 18, Color.Orange);
@@ -1379,6 +1428,20 @@ public class Game
                 new Color((byte)0,(byte)0,(byte)0,(byte)(alpha/2)));
             DrawText(_levelUpMsg, sw/2 - luw/2, sh/2 + 58, 26,
                 new Color((byte)255,(byte)215,(byte)0,alpha));
+        }
+
+        // Poisoned indicator
+        if (_player.Poisoned)
+            DrawText($"POISONED  {_player.PoisonTimer:0.0}s", 10, sh - 130, 14,
+                new Color((byte)60,(byte)220,(byte)80,(byte)255));
+
+        // Melee combo display
+        if (_meleeCombo >= 2)
+        {
+            float fade = Math.Min(1f, _meleeComboTimer / 0.5f);
+            string combo = $"x{_meleeCombo} COMBO!";
+            DrawText(combo, sw/2 - MeasureText(combo, 26)/2, sh/2 + 22, 26,
+                new Color((byte)255,(byte)(int)(120 + fade*120),(byte)0,(byte)(int)(fade*255)));
         }
 
         // Achievement banner (bottom-centre, distinct from top banners)
@@ -1644,6 +1707,7 @@ public class Game
                       : z.IsShaman   ? new Color((byte)180,(byte)50,(byte)255,(byte)255)
                       : z.IsArmoured ? new Color((byte)160,(byte)165,(byte)180,(byte)255)
                       : z.IsCrawler  ? new Color((byte)150,(byte)80,(byte)20,(byte)255)
+                      : z.IsPoison   ? new Color((byte)40,(byte)200,(byte)60,(byte)255)
                       : Color.Red;
             DrawRectangle(ox + zdx * MM_SCALE - 1, oy + zdz * MM_SCALE - 1, 3, 3, dot);
         }
