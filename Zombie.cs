@@ -17,16 +17,18 @@ public class Zombie
     float _hitFlash    = 0f;  // 0..1, set to 1 on hit, decays
     bool  _isRunner;
 
-    public bool IsBoss    { get; private set; }
-    public int  XPReward  { get; private set; }
+    public bool IsBoss     { get; private set; }
+    public bool IsArmoured { get; private set; }
+    public int  XPReward   { get; private set; }
     readonly VoxelWorld _world;
 
-    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false)
+    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false)
     {
-        _world    = world;
-        Position  = pos;
-        _isRunner = isRunner;
-        IsBoss    = isBoss;
+        _world     = world;
+        Position   = pos;
+        _isRunner  = isRunner;
+        IsBoss     = isBoss;
+        IsArmoured = isArmoured;
 
         if (isBoss)
         {
@@ -42,7 +44,7 @@ public class Zombie
             HP = MaxHP = (int)((isRunner ? 30 : 60) * scale);
             _speed    = (isRunner ? 3.8f : 1.5f) * speedScale;
             _damage   = (isRunner ? 8 : 10) * scale;
-            XPReward  = isRunner ? 15 : 10;
+            XPReward  = isRunner ? 15 : isArmoured ? 20 : 10;
         }
     }
 
@@ -140,13 +142,23 @@ public class Zombie
         }
         else
         {
-            // Runners are olive-green; shamblers are dark red
-            var bodyColor = _isRunner
-                ? new Color((byte)Math.Min(255, 80  + flash), (byte)Math.Min(255, 120 + flash), (byte)Math.Min(255, 30  + flash), (byte)255)
-                : new Color((byte)Math.Min(255, 180 + flash), (byte)Math.Min(255, 30  + flash), (byte)Math.Min(255, 30  + flash), (byte)255);
-            var headColor = _isRunner
-                ? new Color((byte)Math.Min(255, 100 + flash), (byte)Math.Min(255, 140 + flash), (byte)Math.Min(255, 60  + flash), (byte)255)
-                : new Color((byte)Math.Min(255, 200 + flash/2), (byte)Math.Min(255, 150 + flash), (byte)Math.Min(255, 100 + flash), (byte)255);
+            // Armoured=silver, Runners=olive-green, Shamblers=dark red
+            Color bodyColor, headColor;
+            if (IsArmoured)
+            {
+                bodyColor = new Color((byte)Math.Min(255, 150 + flash), (byte)Math.Min(255, 155 + flash), (byte)Math.Min(255, 165 + flash), (byte)255);
+                headColor = new Color((byte)Math.Min(255, 130 + flash), (byte)Math.Min(255, 135 + flash), (byte)Math.Min(255, 145 + flash), (byte)255);
+            }
+            else if (_isRunner)
+            {
+                bodyColor = new Color((byte)Math.Min(255, 80  + flash), (byte)Math.Min(255, 120 + flash), (byte)Math.Min(255, 30  + flash), (byte)255);
+                headColor = new Color((byte)Math.Min(255, 100 + flash), (byte)Math.Min(255, 140 + flash), (byte)Math.Min(255, 60  + flash), (byte)255);
+            }
+            else
+            {
+                bodyColor = new Color((byte)Math.Min(255, 180 + flash), (byte)Math.Min(255, 30  + flash), (byte)Math.Min(255, 30  + flash), (byte)255);
+                headColor = new Color((byte)Math.Min(255, 200 + flash/2), (byte)Math.Min(255, 150 + flash), (byte)Math.Min(255, 100 + flash), (byte)255);
+            }
             DrawCube(Position + new Vector3(0, 0.9f, 0),  0.6f,  1.5f, 0.6f,  bodyColor);
             DrawCube(Position + new Vector3(0, 1.85f, 0), 0.45f, 0.45f, 0.45f, headColor);
             float hpFrac = (float)HP / MaxHP;

@@ -23,15 +23,17 @@ public class WaveSpawner
 
     void SpawnWave()
     {
-        int night = _dnc.NightCount;
-        int total = _baseCount + (night - 1) * 4;
-        int runners = night >= 2 ? total / 3 : 0;
+        int night     = _dnc.NightCount;
+        int total     = _baseCount + (night - 1) * 4;
+        int runners   = night >= 2 ? total / 3 : 0;
         int shamblers = total - runners;
+        int armoured  = night >= 3 ? shamblers / 5 : 0;
+        shamblers    -= armoured;
 
         for (int i = 0; i < shamblers; i++) SpawnOne(night, isRunner: false);
         for (int i = 0; i < runners;   i++) SpawnOne(night, isRunner: true);
+        for (int i = 0; i < armoured;  i++) SpawnOne(night, isRunner: false, isArmoured: true);
 
-        // Boss zombie every night from night 5 onward
         if (night >= 5) SpawnBoss(night);
     }
 
@@ -48,7 +50,7 @@ public class WaveSpawner
         Active.Add(new Zombie(_world, pos, night, isRunner: false, isBoss: true));
     }
 
-    void SpawnOne(int night, bool isRunner)
+    void SpawnOne(int night, bool isRunner, bool isArmoured = false)
     {
         float angle = (float)(_rng.NextDouble() * Math.PI * 2);
         Vector3 pos = new(
@@ -63,17 +65,18 @@ public class WaveSpawner
             if (_world.IsSolid(ix, y, iz)) { pos.Y = y + 1f; break; }
         }
 
-        Active.Add(new Zombie(_world, pos, night, isRunner));
+        Active.Add(new Zombie(_world, pos, night, isRunner, isBoss: false, isArmoured: isArmoured));
     }
 
     void DespawnAll() => Active.Clear();
 
-    public (int shamblers, int runners, bool hasBoss) GetWavePreview(int night)
+    public (int shamblers, int runners, int armoured, bool hasBoss) GetWavePreview(int night)
     {
         int total     = _baseCount + (night - 1) * 4;
         int runners   = night >= 2 ? total / 3 : 0;
         int shamblers = total - runners;
-        return (shamblers, runners, night >= 5);
+        int armoured  = night >= 3 ? shamblers / 5 : 0;
+        return (shamblers - armoured, runners, armoured, night >= 5);
     }
 
     public void Update(float dt, Player player)

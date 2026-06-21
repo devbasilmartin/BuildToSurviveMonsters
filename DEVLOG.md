@@ -6,6 +6,30 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 13 — Armoured Zombie, Voxel Destruction, Fog Night  *(2026-06-21)*
+
+**Armoured Zombie** (spawns night 3+, ~20% of shamblers)
+- Silver/grey visual; takes only 25% bullet damage (gun is weak against them)
+- Melee deals 2× normal damage — encourages mixing weapons vs armour type
+- Spike traps bypass armour entirely (useful base-defence vs armoured hordes)
+- Drops 20 XP (vs 10 for shamblers)
+- Shows silver/grey on minimap (vs red shamblers, green runners, magenta boss)
+- Wave preview includes armoured count: "Night N: X zombies + Y armoured + Z runners"
+- `Zombie.IsArmoured` public property; constructor param `isArmoured = false`
+
+**Explosive voxel destruction**
+- Explosion now destroys nearby natural blocks (dirt, stone, wood, leaves, sand) in 2.5-unit radius
+- Preserves player-built walls (ids 4,5,12), fixtures (9,10,13–17), and water (19)
+- Useful for clearing trees, opening terrain paths, mining in emergencies
+
+**Fog Night** (30% chance each night)
+- Draw distance drops from 40 to 15 units — visually dramatic and tactically challenging
+- "FOG NIGHT" appended to wave preview banner at night start
+- "FOG" indicator drawn on screen right side while active
+- Clears automatically on day start
+
+---
+
 ## Sprint 12 — Thrown Explosive, Crafting Level Gates, HUD Fix  *(2026-06-21)*
 
 **Thrown Explosive** (craft: 2 iron + 3 wood, Lv.4 required)
@@ -287,6 +311,6 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] Random world events: fog night (reduced view range), double-wave night
-- [ ] Explosive voxel destruction: explosion removes nearby dirt/stone blocks
-- [ ] Zombie types: armoured zombie (resists bullets, weak to melee)
+- [ ] Double-wave night event (random ~20% chance, separate from fog)
+- [ ] Zombie crawler: low-profile zombie that's hard to shoot (small hitbox)
+- [ ] Player stamina: sprint with Shift, drains quickly, affects melee range

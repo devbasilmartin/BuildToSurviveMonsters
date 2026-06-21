@@ -39,6 +39,7 @@ public class Game
     float   _healAccum         = 0f;
     float   _explosionTimer    = 0f;
     Vector3 _explosionPos;
+    bool    _fogNight          = false;
     Vector3 _spawnPos;
 
     static readonly int[] LevelThresholds = { 50, 150, 300, 500, 750 };
@@ -98,15 +99,17 @@ public class Game
         _dnc.OnNightStart += () => {
             _nightCleared    = false;
             _nightStartDelay = 2f;
+            _fogNight        = _rng.Next(10) < 3; // 30% fog chance
             if (_dnc.NightCount >= 5) _bossWarningTimer = 5f;
-            // Wave preview banner
-            var (s, r, b) = _waves.GetWavePreview(_dnc.NightCount);
-            _waveBannerMsg   = $"Night {_dnc.NightCount}:  {s} zombies";
-            if (r > 0)       _waveBannerMsg += $"  +  {r} runners";
-            if (b)           _waveBannerMsg += "  +  BOSS!";
+            var (s, r, a, b) = _waves.GetWavePreview(_dnc.NightCount);
+            _waveBannerMsg = $"Night {_dnc.NightCount}:  {s} zombies";
+            if (r > 0) _waveBannerMsg += $"  +  {r} runners";
+            if (a > 0) _waveBannerMsg += $"  +  {a} armoured";
+            if (b)     _waveBannerMsg += "  +  BOSS!";
+            if (_fogNight) _waveBannerMsg += "   [FOG NIGHT]";
             _waveBannerTimer = 4f;
         };
-        _dnc.OnDayStart += () => { _nightCleared = false; };
+        _dnc.OnDayStart += () => { _nightCleared = false; _fogNight = false; };
 
         // Enemies
         _waves = new WaveSpawner(_world, _dnc);
@@ -304,6 +307,20 @@ public class Game
         _explosionPos   = target;
         _explosionTimer = 0.5f;
 
+        // Destroy nearby natural voxels (not walls, fixtures, or water)
+        var ep = VoxelWorld.WorldToVoxel(target);
+        for (int dx = -2; dx <= 2; dx++)
+        for (int dy = -1; dy <= 2; dy++)
+        for (int dz = -2; dz <= 2; dz++)
+        {
+            int vx = ep.X+dx, vy = ep.Y+dy, vz = ep.Z+dz;
+            float vd = Vector3.Distance(target, new Vector3(vx+0.5f, vy+0.5f, vz+0.5f));
+            if (vd > 2.5f) continue;
+            byte b = _world.GetVoxel(vx, vy, vz);
+            if (b == 1 || b == 2 || b == 3 || b == 6 || b == 18) // dirt, stone, wood, leaves, sand
+                _world.SetVoxel(vx, vy, vz, 0);
+        }
+
         // AoE damage with falloff
         const float Radius = 3.5f;
         foreach (var z in _waves.Active)
@@ -365,7 +382,8 @@ public class Game
             if (toZ.LengthSquared() > 0 && Vector3.Dot(fwd2D, Vector3.Normalize(toZ)) > 0.3f)
             {
                 bool wasDead = z.IsDead;
-                z.TakeDamage(dmg);
+                int meleeDmg = z.IsArmoured ? dmg * 2 : dmg; // melee bypasses + bonus vs armoured
+                z.TakeDamage(meleeDmg);
                 if (z.IsDead && !wasDead) AwardKill(z);
             }
         }
@@ -442,7 +460,8 @@ public class Game
                     if (hitBody || hitHead)
                     {
                         bool wasDead = z.IsDead;
-                        z.TakeDamage(GunDamage);
+                        int bulletDmg = z.IsArmoured ? GunDamage / 4 : GunDamage;
+                        z.TakeDamage(bulletDmg);
                         if (z.IsDead && !wasDead) { AwardKill(z); }
                         dead = true;
                         break;
@@ -591,6 +610,7 @@ public class Game
         _waveBannerTimer  = 0f;
         _healAccum        = 0f;
         _explosionTimer   = 0f;
+        _fogNight         = false;
         Init();
         _gameOver = false;
     }
@@ -609,7 +629,7 @@ public class Game
 
         BeginMode3D(_camera);
 
-        _world.Draw(_player.EyePos);
+        _world.Draw(_player.EyePos, _fogNight ? 15f : 40f);
         _waves.Draw();
 
         // Highlight target voxel
@@ -847,6 +867,11 @@ public class Game
                          : _dnc.Phase == DayPhase.Warning ? new Color((byte)255,(byte)200,(byte)50,(byte)255)
                          : Color.White;
         DrawText(phase, sw/2 - MeasureText(phase, 20)/2, 10, 20, phaseColor);
+
+        // Fog night indicator
+        if (_fogNight)
+            DrawText("FOG", sw - MM_SIZE - 10, sh/2 - MeasureText("FOG", 20)/2, 20,
+                new Color((byte)180,(byte)180,(byte)220,(byte)200));
 
         // Kill count + death count (left of minimap)
         DrawText($"Kills: {_killCount}", sw - MM_SIZE - 100, 10, 18, Color.Orange);
@@ -1134,7 +1159,9 @@ public class Game
             int zdx = (int)(z.Position.X - pcxd) + MM_RANGE;
             int zdz = (int)(z.Position.Z - pczd) + MM_RANGE;
             if (zdx < 0 || zdx >= MM_RANGE*2 || zdz < 0 || zdz >= MM_RANGE*2) continue;
-            Color dot = z.IsBoss ? Color.Magenta : Color.Red;
+            Color dot = z.IsBoss     ? Color.Magenta
+                      : z.IsArmoured ? new Color((byte)160,(byte)165,(byte)180,(byte)255)
+                      : Color.Red;
             DrawRectangle(ox + zdx * MM_SCALE - 1, oy + zdz * MM_SCALE - 1, 3, 3, dot);
         }
 
