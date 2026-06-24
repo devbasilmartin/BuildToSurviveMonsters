@@ -259,11 +259,6 @@ public class Game
         _dnc.SetFastForward(IsKeyDown(KeyboardKey.T));
         _dnc.Update(dt);
 
-        // Sync first-person camera so mining raycast sees the current eye position
-        _camera.Position = _player.EyePos;
-        _camera.Target   = _player.EyePos + _player.Forward;
-        _player.Camera   = _camera;
-
         _player.Update(dt);
 
         _waves.Update(dt, _player);

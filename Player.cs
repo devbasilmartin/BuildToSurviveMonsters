@@ -39,7 +39,6 @@ public class Player
     bool  _grounded;
 
     readonly VoxelWorld _world;
-    public Camera3D Camera; // set by Game each frame before Update
 
     public Player(VoxelWorld world, Vector3 startPos)
     {
@@ -86,9 +85,10 @@ public class Player
 
     void HandleLook()
     {
-        var d = GetMouseDelta();
-        Yaw   += d.X * Sensitivity;
-        Pitch  = Math.Clamp(Pitch - d.Y * Sensitivity, -89f, 89f);
+        Vector2 md = GetMouseDelta();
+        Yaw   -= md.X * Sensitivity;
+        Pitch += md.Y * Sensitivity;
+        Pitch  = Math.Clamp(Pitch, -89f, 89f);
     }
 
     // ── Movement + voxel AABB collision ──────────────────────────────────────
@@ -193,8 +193,7 @@ public class Player
         TargetVoxel = null;
         PlaceVoxel  = null;
 
-        var mRay = GetMouseRay(GetMousePosition(), Camera);
-        if (_world.Raycast(mRay.Position, mRay.Direction, 8f, out var hit, out var face))
+        if (_world.Raycast(EyePos, Forward, MineRange, out var hit, out var face))
         {
             TargetVoxel = hit;
             PlaceVoxel  = hit + face;
