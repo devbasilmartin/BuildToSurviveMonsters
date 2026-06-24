@@ -39,6 +39,7 @@ public class Player
     bool  _grounded;
 
     readonly VoxelWorld _world;
+    public Camera3D Camera; // set by Game each frame before Update
 
     public Player(VoxelWorld world, Vector3 startPos)
     {
@@ -77,29 +78,18 @@ public class Player
 
     public void Update(float dt)
     {
-        HandleLook();
         HandleMovement(dt);
         HandleMining(dt);
         HandleHotbar();
-    }
-
-    // ── Look ─────────────────────────────────────────────────────────────────
-
-    void HandleLook()
-    {
-        Vector2 md = GetMouseDelta();
-        Yaw   -= md.X * Sensitivity;
-        Pitch += md.Y * Sensitivity;
-        Pitch  = Math.Clamp(Pitch, -89f, 89f);
     }
 
     // ── Movement + voxel AABB collision ──────────────────────────────────────
 
     void HandleMovement(float dt)
     {
-        float yR = Yaw * MathF.PI / 180f;
-        Vector3 forward = new(MathF.Sin(yR), 0, MathF.Cos(yR));
-        Vector3 right   = new(MathF.Cos(yR), 0, -MathF.Sin(yR));
+        // Fixed world-space axes — W/S = world +Z/-Z, A/D = world +X/-X
+        Vector3 forward = new(0, 0, 1);
+        Vector3 right   = new(1, 0, 0);
 
         Vector3 move = Vector3.Zero;
         if (IsKeyDown(KeyboardKey.W) || IsKeyDown(KeyboardKey.Up))    move += forward;
@@ -195,7 +185,8 @@ public class Player
         TargetVoxel = null;
         PlaceVoxel  = null;
 
-        if (_world.Raycast(EyePos, Forward, MineRange, out var hit, out var face))
+        var mRay = GetMouseRay(GetMousePosition(), Camera);
+        if (_world.Raycast(mRay.Position, mRay.Direction, 30f, out var hit, out var face))
         {
             TargetVoxel = hit;
             PlaceVoxel  = hit + face;

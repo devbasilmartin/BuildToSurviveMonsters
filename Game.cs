@@ -231,12 +231,13 @@ public class Game
         // Subscribe AFTER WaveSpawner so this fires after SpawnWave populates Active
         _dnc.OnNightStart += ApplyNightModifiers;
 
-        // Camera — updated every frame from player position/look
+        // Overhead isometric camera — follows player, angle fixed
         _camera = new Camera3D(
-            _player.EyePos, _player.EyePos + _player.Forward,
+            _player.Position + new Vector3(0, 10, -10),
+            _player.Position,
             Vector3.UnitY, 70f, CameraProjection.Perspective);
 
-        DisableCursor();
+        EnableCursor();
     }
 
     public void Update(float dt)
@@ -259,6 +260,25 @@ public class Game
         // Fast-forward day (T key, debug)
         _dnc.SetFastForward(IsKeyDown(KeyboardKey.T));
         _dnc.Update(dt);
+
+        // Sync overhead camera so mining raycast uses the current frame's position
+        _camera.Position = _player.Position + new Vector3(0, 10, -10);
+        _camera.Target   = _player.Position;
+        _player.Camera   = _camera;
+
+        // Aim player toward mouse cursor (ray → horizontal ground plane at player height)
+        var aimRay = GetMouseRay(GetMousePosition(), _camera);
+        if (aimRay.Direction.Y < -0.001f)
+        {
+            float ta = (_player.Position.Y + 0.5f - aimRay.Position.Y) / aimRay.Direction.Y;
+            if (ta > 0)
+            {
+                Vector3 aimPt = aimRay.Position + aimRay.Direction * ta;
+                Vector3 toAim = aimPt - _player.Position;
+                if (toAim.X * toAim.X + toAim.Z * toAim.Z > 0.1f)
+                    _player.Yaw = MathF.Atan2(toAim.X, toAim.Z) * 180f / MathF.PI;
+            }
+        }
 
         _player.Update(dt);
 
@@ -543,10 +563,6 @@ public class Game
         // Minimap refresh
         _mmAge += dt;
         if (_mmAge >= 1f) { _mmAge = 0f; _mmDirty = true; }
-
-        // Sync camera to player look
-        _camera.Position = _player.EyePos;
-        _camera.Target   = _player.EyePos + _player.Forward;
 
         // Respawn instead of game-over
         if (_player.IsDead) DoRespawn();
@@ -1200,23 +1216,42 @@ public class Game
         BeginDrawing();
         ClearBackground(sky);
 
-        // Camera with shake
+        // Camera with shake (overhead position + lateral shake offset)
         {
             Vector3 shOff = Vector3.Zero;
             if (_shakeTimer > 0)
             {
                 float mag = _shakeTimer * _shakeIntensity * 0.04f;
                 float t   = (float)GetTime() * 28f;
-                shOff = new Vector3(MathF.Sin(t * 1.7f) * mag, MathF.Sin(t * 2.4f) * mag * 0.6f, 0);
+                shOff = new Vector3(MathF.Sin(t * 1.7f) * mag, 0, MathF.Sin(t * 2.4f) * mag * 0.4f);
             }
-            _camera.Position = _player.EyePos + shOff;
-            _camera.Target   = _player.EyePos + _player.Forward + shOff;
+            _camera.Position = _player.Position + new Vector3(0, 10, -10) + shOff;
+            _camera.Target   = _player.Position + shOff;
         }
         BeginMode3D(_camera);
 
         float drawDist = _fogNight ? 15f : _blackoutNight ? 12f : 40f;
         _world.Draw(_player.EyePos, drawDist);
         _waves.Draw();
+
+        // Player character (visible in overhead view)
+        {
+            bool blink = _player.Invincible && ((int)(GetTime() * 10) % 2 == 0);
+            if (!blink)
+            {
+                Color pc = new Color((byte)230,(byte)185,(byte)135,(byte)255);
+                DrawCube(_player.Position + new Vector3(0, 0.75f, 0), 0.5f, 1.5f, 0.5f, pc);
+                DrawCube(_player.Position + new Vector3(0, 1.65f, 0), 0.38f, 0.38f, 0.38f,
+                    new Color((byte)215,(byte)160,(byte)110,(byte)255));
+                // Yellow aim line
+                Vector3 fwdXZ = new(_player.Forward.X, 0, _player.Forward.Z);
+                if (fwdXZ.LengthSquared() > 0) fwdXZ = Vector3.Normalize(fwdXZ);
+                DrawLine3D(
+                    _player.Position + new Vector3(0, 1.3f, 0),
+                    _player.Position + new Vector3(0, 1.3f, 0) + fwdXZ * 0.9f,
+                    new Color((byte)255,(byte)240,(byte)60,(byte)255));
+            }
+        }
 
         // Highlight target voxel
         if (_player.TargetVoxel.HasValue)
@@ -1274,141 +1309,6 @@ public class Game
             DrawSphere(_turretFlashPos, 0.2f,
                 new Color((byte)255,(byte)220,(byte)60,(byte)(int)(_turretFlashTimer/0.15f*200)));
 
-        // Viewmodel
-        {
-            Vector3 fwd   = _player.Forward;
-            Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, fwd));
-            Vector3 up    = Vector3.Cross(fwd, right);
-
-            byte selId = _player.HotbarBlocks[_player.SelectedSlot].blockId;
-
-            if (_player.IsGunSelected)
-            {
-                float   kick    = _gunRecoil * 0.12f;
-                Vector3 gunBase = _player.EyePos
-                    + right * 0.22f - up * 0.18f
-                    + fwd * (0.45f - kick) + up * (kick * 0.5f);
-
-                DrawCube(gunBase, 0.07f, 0.07f, 0.22f, new Color((byte)60,(byte)60,(byte)60,(byte)255));
-                DrawCube(gunBase + fwd * 0.18f, 0.04f, 0.04f, 0.14f, new Color((byte)40,(byte)40,(byte)40,(byte)255));
-                DrawCube(gunBase - up * 0.07f - fwd * 0.05f, 0.06f, 0.1f, 0.06f, new Color((byte)80,(byte)50,(byte)30,(byte)255));
-                if (_gunRecoil > 0.8f)
-                    DrawCube(gunBase + fwd * 0.28f, 0.12f, 0.12f, 0.06f, new Color((byte)255,(byte)220,(byte)50,(byte)200));
-            }
-            else if (selId == 252) // Iron Sword
-            {
-                float swing = _meleeSwing * 0.45f;
-                Vector3 sBase = _player.EyePos
-                    + right * 0.20f - up * (0.14f - swing) + fwd * (0.38f + swing * 0.15f);
-                // Guard
-                DrawCube(sBase, 0.22f, 0.05f, 0.05f,
-                    new Color((byte)150,(byte)155,(byte)165,(byte)255));
-                // Handle
-                DrawCube(sBase - fwd * 0.13f, 0.04f, 0.04f, 0.18f,
-                    new Color((byte)80,(byte)50,(byte)20,(byte)255));
-                // Blade — longer and brighter than stone sword
-                DrawCube(sBase + fwd * 0.16f, 0.048f, 0.058f, 0.36f,
-                    new Color((byte)200,(byte)210,(byte)220,(byte)255));
-                // Blade tip
-                DrawCube(sBase + fwd * 0.36f + up * 0.01f, 0.025f, 0.03f, 0.08f,
-                    new Color((byte)220,(byte)230,(byte)240,(byte)255));
-            }
-            else if (selId == 253) // Wood Club
-            {
-                float swing = _meleeSwing * 0.35f;
-                Vector3 clubBase = _player.EyePos
-                    + right * 0.22f - up * (0.15f - swing) + fwd * (0.4f + swing * 0.2f);
-                // Handle
-                DrawCube(clubBase, 0.045f, 0.045f, 0.32f,
-                    new Color((byte)120,(byte)75,(byte)30,(byte)255));
-                // Thick knob head
-                DrawCube(clubBase + fwd * 0.18f + up * 0.02f, 0.1f, 0.1f, 0.14f,
-                    new Color((byte)139,(byte)90,(byte)40,(byte)255));
-            }
-            else if (selId == 254) // Stone Sword
-            {
-                float swing = _meleeSwing * 0.4f;
-                Vector3 swordBase = _player.EyePos
-                    + right * 0.20f - up * (0.14f - swing) + fwd * (0.38f + swing * 0.15f);
-                // Guard (crossguard)
-                DrawCube(swordBase, 0.18f, 0.045f, 0.045f,
-                    new Color((byte)101,(byte)67,(byte)33,(byte)255));
-                // Handle
-                DrawCube(swordBase - fwd * 0.12f, 0.04f, 0.04f, 0.16f,
-                    new Color((byte)120,(byte)75,(byte)30,(byte)255));
-                // Blade (stone-grey, long thin)
-                DrawCube(swordBase + fwd * 0.14f, 0.045f, 0.055f, 0.3f,
-                    new Color((byte)160,(byte)160,(byte)165,(byte)255));
-                // Blade tip (darker)
-                DrawCube(swordBase + fwd * 0.3f + up * 0.01f, 0.025f, 0.03f, 0.1f,
-                    new Color((byte)110,(byte)110,(byte)115,(byte)255));
-            }
-            else if (selId == 247) // Shadow Blade — dark near-black blade
-            {
-                float swing = _meleeSwing * 0.5f;
-                Vector3 sbBase = _player.EyePos
-                    + right * 0.20f - up * (0.14f - swing) + fwd * (0.38f + swing * 0.15f);
-                DrawCube(sbBase, 0.28f, 0.055f, 0.055f,
-                    new Color((byte)40,(byte)40,(byte)80,(byte)255));  // dark guard
-                DrawCube(sbBase - fwd * 0.16f, 0.04f, 0.04f, 0.22f,
-                    new Color((byte)30,(byte)20,(byte)20,(byte)255));  // dark grip
-                DrawCube(sbBase + fwd * 0.22f, 0.045f, 0.06f, 0.46f,
-                    new Color((byte)20,(byte)20,(byte)40,(byte)255));  // near-black blade
-                DrawCube(sbBase + fwd * 0.47f + up * 0.01f, 0.02f, 0.03f, 0.1f,
-                    new Color((byte)100,(byte)120,(byte)200,(byte)255)); // blue tip
-            }
-            else if (selId == 248) // Steel Sword — long polished silver blade
-            {
-                float swing = _meleeSwing * 0.45f;
-                Vector3 ssBase = _player.EyePos
-                    + right * 0.20f - up * (0.14f - swing) + fwd * (0.38f + swing * 0.15f);
-                // Guard — wide, gold-tinted
-                DrawCube(ssBase, 0.26f, 0.055f, 0.055f,
-                    new Color((byte)200,(byte)180,(byte)60,(byte)255));
-                // Handle — wrapped grip
-                DrawCube(ssBase - fwd * 0.14f, 0.04f, 0.04f, 0.2f,
-                    new Color((byte)60,(byte)40,(byte)20,(byte)255));
-                // Blade — longer and brighter than iron
-                DrawCube(ssBase + fwd * 0.19f, 0.05f, 0.06f, 0.42f,
-                    new Color((byte)220,(byte)235,(byte)245,(byte)255));
-                // Tip
-                DrawCube(ssBase + fwd * 0.42f + up * 0.01f, 0.02f, 0.03f, 0.1f,
-                    new Color((byte)240,(byte)248,(byte)255,(byte)255));
-            }
-            else if (selId == 249) // Stone Hatchet — wide stone blade, short handle
-            {
-                Vector3 hBase = _player.EyePos + right * 0.24f - up * 0.20f + fwd * 0.40f;
-                DrawCube(hBase, 0.04f, 0.04f, 0.28f,
-                    new Color((byte)101,(byte)67,(byte)33,(byte)255)); // handle
-                DrawCube(hBase + fwd * 0.14f + up * 0.04f, 0.30f, 0.18f, 0.06f,
-                    new Color((byte)110,(byte)110,(byte)115,(byte)255)); // stone blade
-                DrawCube(hBase + fwd * 0.20f - up * 0.06f, 0.1f, 0.08f, 0.05f,
-                    new Color((byte)90,(byte)90,(byte)95,(byte)255));   // lower edge
-            }
-            else if (selId == 250) // Iron Pickaxe — longer, silver head
-            {
-                Vector3 pBase = _player.EyePos + right * 0.24f - up * 0.22f + fwd * 0.44f;
-                DrawCube(pBase, 0.04f, 0.04f, 0.40f,
-                    new Color((byte)101,(byte)67,(byte)33,(byte)255)); // handle
-                DrawCube(pBase + fwd * 0.22f + up * 0.03f, 0.24f, 0.055f, 0.055f,
-                    new Color((byte)190,(byte)195,(byte)205,(byte)255)); // iron crossbar
-                DrawCube(pBase + fwd * 0.29f - up * 0.06f, 0.04f, 0.14f, 0.04f,
-                    new Color((byte)170,(byte)175,(byte)185,(byte)255)); // pick point
-            }
-            else
-            {
-                // Default pickaxe viewmodel (stone)
-                Vector3 pickBase = _player.EyePos
-                    + right * 0.24f - up * 0.22f + fwd * 0.42f;
-                DrawCube(pickBase, 0.04f, 0.04f, 0.38f,
-                    new Color((byte)101,(byte)67,(byte)33,(byte)255));
-                DrawCube(pickBase + fwd * 0.2f + up * 0.03f, 0.22f, 0.055f, 0.055f,
-                    new Color((byte)128,(byte)128,(byte)128,(byte)255));
-                DrawCube(pickBase + fwd * 0.26f - up * 0.05f, 0.04f, 0.12f, 0.04f,
-                    new Color((byte)90,(byte)90,(byte)90,(byte)255));
-            }
-        }
-
         EndMode3D();
 
         if (_rainDay && _dnc.Phase != DayPhase.Night) DrawRain();
@@ -1436,23 +1336,6 @@ public class Game
     void DrawHUD()
     {
         int sw = GetScreenWidth(), sh = GetScreenHeight();
-
-        // Crosshair
-        DrawLine(sw/2 - 10, sh/2, sw/2 + 10, sh/2, Color.White);
-        DrawLine(sw/2, sh/2 - 10, sw/2, sh/2 + 10, Color.White);
-
-        // Left-click mode indicator — what the held item does on Left-Click
-        {
-            string mode = _player.IsGunSelected   ? "FIRE"
-                        : _player.IsMeleeSelected  ? "MELEE"
-                        : "MINE";
-            Color modeCol = _player.IsGunSelected
-                ? (_player.Ammo > 0 ? new Color((byte)120,(byte)220,(byte)120,(byte)200)
-                                    : new Color((byte)225,(byte)90,(byte)90,(byte)220))
-                : _player.IsMeleeSelected ? new Color((byte)235,(byte)200,(byte)110,(byte)200)
-                                          : new Color((byte)150,(byte)200,(byte)235,(byte)200);
-            DrawText(mode, sw/2 - MeasureText(mode, 12)/2, sh/2 + 16, 12, modeCol);
-        }
 
         // Stamina bar
         {
