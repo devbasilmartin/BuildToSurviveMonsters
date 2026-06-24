@@ -4,7 +4,8 @@ using System.Numerics;
 
 public class WaveSpawner
 {
-    public List<Zombie> Active = new();
+    public List<Zombie> Active       = new();
+    public List<Vector3> BoomPositions = new(); // populated each Update, cleared next Update
 
     readonly VoxelWorld    _world;
     readonly DayNightCycle _dnc;
@@ -31,7 +32,8 @@ public class WaveSpawner
         int crawlers  = night >= 4 ? shamblers / 6 : 0;
         int poison    = night >= 5 ? shamblers / 8 : 0;
         int ghosts    = night >= 7 ? shamblers / 10 : 0;
-        shamblers    -= armoured + crawlers + poison + ghosts;
+        int boomers   = night >= 6 ? Math.Max(1, shamblers / 8) : 0;
+        shamblers    -= armoured + crawlers + poison + ghosts + boomers;
 
         for (int i = 0; i < shamblers; i++) SpawnOne(night, isRunner: false);
         for (int i = 0; i < runners;   i++) SpawnOne(night, isRunner: true);
@@ -39,6 +41,7 @@ public class WaveSpawner
         for (int i = 0; i < crawlers;  i++) SpawnOne(night, isRunner: false, isCrawler: true);
         for (int i = 0; i < poison;    i++) SpawnOne(night, isRunner: false, isPoison: true);
         for (int i = 0; i < ghosts;    i++) SpawnOne(night, isRunner: false, isGhost: true);
+        for (int i = 0; i < boomers;   i++) SpawnOne(night, isRunner: false, isBoomer: true);
 
         if (night >= 5) SpawnBoss(night);
         if (night >= 6) SpawnShaman(night);
@@ -85,7 +88,7 @@ public class WaveSpawner
         Active.Add(new Zombie(_world, pos, night, isRunner: false, isBoss: true));
     }
 
-    void SpawnOne(int night, bool isRunner, bool isArmoured = false, bool isCrawler = false, bool isPoison = false, bool isGhost = false)
+    void SpawnOne(int night, bool isRunner, bool isArmoured = false, bool isCrawler = false, bool isPoison = false, bool isGhost = false, bool isBoomer = false)
     {
         float angle = (float)(_rng.NextDouble() * Math.PI * 2);
         Vector3 pos = new(
@@ -100,7 +103,7 @@ public class WaveSpawner
             if (_world.IsSolid(ix, y, iz)) { pos.Y = y + 1f; break; }
         }
 
-        Active.Add(new Zombie(_world, pos, night, isRunner, isBoss: false, isArmoured: isArmoured, isCrawler: isCrawler, isPoison: isPoison, isGhost: isGhost));
+        Active.Add(new Zombie(_world, pos, night, isRunner, isBoss: false, isArmoured: isArmoured, isCrawler: isCrawler, isPoison: isPoison, isGhost: isGhost, isBoomer: isBoomer));
     }
 
     void DespawnAll() => Active.Clear();
@@ -119,10 +122,16 @@ public class WaveSpawner
 
     public void Update(float dt, Player player)
     {
+        BoomPositions.Clear();
         for (int i = Active.Count - 1; i >= 0; i--)
         {
             Active[i].Update(dt, player);
-            if (Active[i].IsDead) Active.RemoveAt(i);
+            if (Active[i].IsDead)
+            {
+                if (Active[i].PendingExplode)
+                    BoomPositions.Add(Active[i].Position);
+                Active.RemoveAt(i);
+            }
         }
     }
 

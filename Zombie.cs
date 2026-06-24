@@ -24,13 +24,19 @@ public class Zombie
     public bool IsPoison   { get; private set; }
     public bool IsGigant   { get; private set; }
     public bool IsGhost    { get; private set; }
+    public bool IsBoomer   { get; private set; }
     public int  XPReward   { get; private set; }
     public float SpeedMult        = 1f;
-    public float DamageMultiplier = 1f;  // set by cursed night (ENRAGED: 2x damage to player)
-    public float BulletResistance = 1f;  // set by cursed night (SPECTRAL: 0.5 = half bullet dmg)
+    public float DamageMultiplier = 1f;
+    public float BulletResistance = 1f;
+    public bool  PendingExplode   = false;
+
+    bool  _boomArmed = false;
+    float _boomTimer = 0f;
+
     readonly VoxelWorld _world;
 
-    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false, bool isShaman = false, bool isPoison = false, bool isGigant = false, bool isGhost = false)
+    public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false, bool isShaman = false, bool isPoison = false, bool isGigant = false, bool isGhost = false, bool isBoomer = false)
     {
         _world     = world;
         Position   = pos;
@@ -42,6 +48,7 @@ public class Zombie
         IsPoison   = isPoison;
         IsGigant   = isGigant;
         IsGhost    = isGhost;
+        IsBoomer   = isBoomer;
 
         if (isBoss)
         {
@@ -90,6 +97,13 @@ public class Zombie
             _damage   = 6f;
             XPReward  = 8;
         }
+        else if (isBoomer)
+        {
+            HP = MaxHP = 70 + nightCount * 5;
+            _speed    = 2.6f * (1f + 0.05f * (nightCount - 1));
+            _damage   = 0f;   // no melee — damage comes from explosion
+            XPReward  = 25;
+        }
         else
         {
             float scale = 1f + 0.1f * nightCount;
@@ -108,6 +122,18 @@ public class Zombie
 
         Vector3 toPlayer = player.Position - Position;
         float dist = toPlayer.Length();
+
+        // Boomer: arm when close, freeze and count down, then explode
+        if (IsBoomer)
+        {
+            if (!_boomArmed && dist < 2.2f) { _boomArmed = true; _boomTimer = 1.2f; }
+            if (_boomArmed)
+            {
+                _boomTimer -= dt;
+                if (_boomTimer <= 0) { PendingExplode = true; HP = 0; }
+                return; // frozen in place while counting down
+            }
+        }
 
         // Walk toward player — slide along walls instead of clipping through
         if (dist > 1.5f)
@@ -156,7 +182,12 @@ public class Zombie
         }
     }
 
-    public void TakeDamage(int amount) { HP = Math.Max(0, HP - amount); _hitFlash = 1f; }
+    public void TakeDamage(int amount)
+    {
+        HP = Math.Max(0, HP - amount);
+        _hitFlash = 1f;
+        if (IsBoomer && IsDead) PendingExplode = true;
+    }
 
     bool BlockedAt(float x, float z)
     {
@@ -187,7 +218,31 @@ public class Zombie
         if (IsDead) return;
         byte flash = (byte)(int)(_hitFlash * 200);
 
-        if (IsGhost)
+        if (IsBoomer)
+        {
+            float t = (float)GetTime();
+            // Pulse rate accelerates as countdown progresses
+            float rate = _boomArmed ? 6f + (1.2f - Math.Max(0f, _boomTimer)) * 18f : 2.5f;
+            float pulse = (MathF.Sin(t * rate) + 1f) * 0.5f;
+            byte br = (byte)Math.Min(255, 210 + (int)(pulse * 45) + flash);
+            byte bg = (byte)Math.Min(255, 55 + (int)(pulse * 20) + flash / 3);
+            var bc = new Color(br, bg, (byte)Math.Min(255, 10 + flash), (byte)255);
+            // Bloated squat body
+            DrawCube(Position + new Vector3(0, 0.7f, 0),  0.85f, 1.2f, 0.85f, bc);
+            DrawCube(Position + new Vector3(0, 1.55f, 0), 0.6f,  0.55f, 0.6f, bc);
+            if (_boomArmed)
+            {
+                // Glowing warning orb
+                byte ga = (byte)Math.Min(255, 150 + (int)(pulse * 105));
+                DrawSphere(Position + new Vector3(0, 0.9f, 0), 0.12f + pulse * 0.22f,
+                    new Color((byte)255,(byte)220,(byte)40,ga));
+            }
+            float bf = (float)HP / MaxHP;
+            DrawCube(Position + new Vector3(0, 2.3f, 0), 0.65f, 0.08f, 0.06f, Color.DarkGray);
+            DrawCube(Position + new Vector3(-0.325f+0.325f*bf, 2.3f, 0), 0.65f*bf, 0.08f, 0.07f,
+                new Color((byte)255,(byte)80,(byte)0,(byte)255));
+        }
+        else if (IsGhost)
         {
             float t  = (float)GetTime();
             float fl = 0.7f + 0.3f * MathF.Sin(t * 4f + Position.X);

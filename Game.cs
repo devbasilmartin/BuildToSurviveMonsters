@@ -203,9 +203,11 @@ public class Game
             _cursedNight = _dnc.NightCount >= 3 && _rng.Next(12) == 0;
             if (_cursedNight)
                 _waveBannerMsg += "   [CURSED:MIXED!]";
-            // Check for gigant in wave (only detects gigant if ForceExtraSpawn ran first)
-            foreach (var z in _waves.Active)
-                if (z.IsGigant) { _waveBannerMsg += "   [GIGANT!]"; break; }
+            // Check for gigant/boomer in wave
+            bool hasGigant = false, hasBoomer = false;
+            foreach (var z in _waves.Active) { if (z.IsGigant) hasGigant = true; if (z.IsBoomer) hasBoomer = true; }
+            if (hasGigant) _waveBannerMsg += "   [GIGANT!]";
+            if (hasBoomer) _waveBannerMsg += "   [BOOMERS!]";
             _waveBannerTimer = 4f;
         };
         _dnc.OnDayStart += () => {
@@ -262,6 +264,7 @@ public class Game
         _player.Update(dt);
 
         _waves.Update(dt, _player);
+        foreach (var bp in _waves.BoomPositions) BoomExplosion(bp);
 
         // Hunger / Thirst drain — faster at night, faster while sprinting
         float drainMult = _dnc.Phase == DayPhase.Night ? 1.5f : 1f;
@@ -655,6 +658,27 @@ public class Game
             if (dist >= Radius) continue;
             bool wasDead = z.IsDead;
             z.TakeDamage((int)(220f * (1f - dist / Radius)));
+            if (z.IsDead && !wasDead) AwardKill(z);
+        }
+    }
+
+    void BoomExplosion(Vector3 pos)
+    {
+        _explosionPos   = pos + new Vector3(0, 0.7f, 0);
+        _explosionTimer = 0.5f;
+
+        const float Radius = 3.0f;
+        float pd = Vector3.Distance(_player.Position, pos);
+        if (pd < Radius)
+            _player.TakeDamage((int)(150f * (1f - pd / Radius)));
+
+        foreach (var z in _waves.Active)
+        {
+            if (z.IsDead) continue;
+            float zd = Vector3.Distance(pos, z.Position);
+            if (zd >= Radius) continue;
+            bool wasDead = z.IsDead;
+            z.TakeDamage((int)(200f * (1f - zd / Radius)));
             if (z.IsDead && !wasDead) AwardKill(z);
         }
     }
@@ -2118,6 +2142,7 @@ public class Game
             if (zdx < 0 || zdx >= MM_RANGE*2 || zdz < 0 || zdz >= MM_RANGE*2) continue;
             Color dot = z.IsBoss     ? Color.Magenta
                       : z.IsShaman   ? new Color((byte)180,(byte)50,(byte)255,(byte)255)
+                      : z.IsBoomer   ? new Color((byte)255,(byte)140,(byte)0,(byte)255)
                       : z.IsArmoured ? new Color((byte)160,(byte)165,(byte)180,(byte)255)
                       : z.IsCrawler  ? new Color((byte)150,(byte)80,(byte)20,(byte)255)
                       : z.IsPoison   ? new Color((byte)40,(byte)200,(byte)60,(byte)255)
