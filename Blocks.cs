@@ -35,6 +35,7 @@ public static class Blocks
         new("Sand",          new Color(210, 180, 100, 255),   1, false, 0, 0, 0),  // 18 solid, no drop
         new("Water",         new Color( 30, 100, 200, 255), 999, false, 0, 0, 0),  // 19 non-solid, indestructible
         new("Turret",        new Color( 50,  50,  60, 255),  30, true,  8, 2, 3),  // 20 buildable, drops iron
+        new("Chest",         new Color(160, 100,  30, 255),  15, true,  3, 1, 2),  // 21 buildable, drops wood
     };
 
     public static BlockDef Get(byte id) => id < All.Length ? All[id] : All[0];

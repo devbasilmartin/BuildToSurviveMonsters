@@ -6,6 +6,26 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 29 — Chest Block (Placeable Storage)  *(2026-06-23)*
+
+**Chest block** (blockId 21, hotbar slot 8)
+- Place with right-click; costs 4 wood per chest
+- Walk up and press **E** to open; auto-closes if you walk more than 4.5 units away
+- 15 HP when mined; drops 1-2 wood
+- Shows as warm honey-brown on minimap, distinct from crafting table
+
+**Chest UI** (two-panel inventory overlay)
+- Left panel: **STORED** — items currently in this chest
+- Right panel: **YOUR PACK** — your resource inventory
+- `←→` switches active panel; `↑↓` moves cursor; `Enter` transfers the selected stack in full
+- Mutual exclusion with crafting UI: opening one closes the other
+- Each chest position has independent contents stored in `_chestContents` dictionary (keyed by `Vector3Int`)
+- Contents reset on restart (world regenerates so old positions are meaningless)
+
+**Context hint** updated: shows `E: Open Chest (←→ switch panel ↑↓ select Enter transfer)` when adjacent
+
+---
+
 ## Sprint 28 — Ghost Hunter Achievement + Cursed Night  *(2026-06-23)*
 
 **Ghost Hunter achievement** (#16)
@@ -650,6 +670,6 @@ Only the off-convention action key (throw) moved.
 
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
-- [ ] Chest block: placeable storage, right-click opens inventory UI
+- [ ] Chest: stack-splitting (deposit/withdraw partial amounts, not just full stacks)
 - [ ] Cursed Night — add "per-zombie random type" variant (each zombie independently rolls its curse, not one type per night)
 - [ ] Player size-up: eating 5 food at once gives brief +range melee

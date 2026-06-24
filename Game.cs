@@ -38,6 +38,11 @@ public class Game
     bool    _cursedNight           = false;
     int     _cursedType            = 0;    // 0=RABID 1=ENRAGED 2=SPECTRAL
     int     _ghostKills            = 0;
+    bool    _chestOpen             = false;
+    Vector3Int _openChestPos;
+    int     _chestPanel            = 0;   // 0=chest contents, 1=player inventory
+    int     _chestCursor           = 0;
+    readonly System.Collections.Generic.Dictionary<Vector3Int, System.Collections.Generic.Dictionary<byte, int>> _chestContents = new();
     float   _shakeTimer            = 0f;
     float   _shakeIntensity        = 0f;
     int     _meleeCombo            = 0;
@@ -351,15 +356,54 @@ public class Game
             return;
         }
 
-        // E: open loot crate first, else toggle crafting table
+        // E: open loot crate > chest > crafting table
         bool nearTable = NearCraftingTable();
         Vector3Int? nearCrate = FindNearbyCrate();
+        Vector3Int? nearChest = FindNearbyChest();
         if (IsKeyPressed(KeyboardKey.E))
         {
             if (nearCrate.HasValue)
                 OpenCrate(nearCrate.Value);
+            else if (_chestOpen)
+                _chestOpen = false;
+            else if (nearChest.HasValue)
+            {
+                _openChestPos = nearChest.Value;
+                _chestOpen    = true;
+                _chestPanel   = 0;
+                _chestCursor  = 0;
+                _craftingOpen = false;
+            }
             else if (nearTable || _craftingOpen)
+            {
                 _craftingOpen = !_craftingOpen;
+                if (_craftingOpen) _chestOpen = false;
+            }
+        }
+
+        // Chest UI input
+        if (_chestOpen)
+        {
+            float chestDist = Vector3.Distance(_player.Position,
+                new Vector3(_openChestPos.X + 0.5f, _openChestPos.Y, _openChestPos.Z + 0.5f));
+            if (chestDist > 4.5f)
+                _chestOpen = false;
+            else
+            {
+                if (IsKeyPressed(KeyboardKey.Escape)) { _chestOpen = false; }
+                else
+                {
+                    var ci     = GetChestItems();
+                    var pi     = GetPlayerItems();
+                    int maxIdx = Math.Max(0, (_chestPanel == 0 ? ci.Count : pi.Count) - 1);
+                    if (IsKeyPressed(KeyboardKey.Left) || IsKeyPressed(KeyboardKey.Right))
+                    { _chestPanel = 1 - _chestPanel; _chestCursor = 0; }
+                    if (IsKeyPressed(KeyboardKey.Up))   _chestCursor = Math.Max(0, _chestCursor - 1);
+                    if (IsKeyPressed(KeyboardKey.Down)) _chestCursor = Math.Min(maxIdx, _chestCursor + 1);
+                    if (IsKeyPressed(KeyboardKey.Enter) || IsKeyPressed(KeyboardKey.KpEnter)) TransferItem();
+                }
+            }
+            return;
         }
 
         // Craft: arrow-key navigation + Enter; number keys 1-9 for visible rows
@@ -867,6 +911,67 @@ public class Game
         return false;
     }
 
+    Vector3Int? FindNearbyChest()
+    {
+        var v = VoxelWorld.WorldToVoxel(_player.Position);
+        for (int dx = -2; dx <= 2; dx++)
+        for (int dy = -1; dy <= 2; dy++)
+        for (int dz = -2; dz <= 2; dz++)
+        {
+            int cx = v.X+dx, cy = v.Y+dy, cz = v.Z+dz;
+            if (_world.GetVoxel(cx, cy, cz) == 21)
+                return new Vector3Int(cx, cy, cz);
+        }
+        return null;
+    }
+
+    System.Collections.Generic.List<(byte id, int count)> GetChestItems()
+    {
+        if (!_chestContents.TryGetValue(_openChestPos, out var c))
+            return new();
+        var list = new System.Collections.Generic.List<(byte id, int count)>();
+        foreach (var kv in c) if (kv.Value > 0) list.Add((kv.Key, kv.Value));
+        list.Sort((a, b) => a.id - b.id);
+        return list;
+    }
+
+    System.Collections.Generic.List<(byte id, int count)> GetPlayerItems()
+    {
+        var list = new System.Collections.Generic.List<(byte id, int count)>();
+        foreach (var kv in _player.Inventory)
+            if (kv.Value > 0) list.Add((kv.Key, kv.Value));
+        list.Sort((a, b) => a.id - b.id);
+        return list;
+    }
+
+    void TransferItem()
+    {
+        if (!_chestContents.ContainsKey(_openChestPos))
+            _chestContents[_openChestPos] = new();
+        var chest = _chestContents[_openChestPos];
+
+        if (_chestPanel == 0) // take full stack from chest → player
+        {
+            var items = GetChestItems();
+            if (items.Count == 0 || _chestCursor >= items.Count) return;
+            var (id, count) = items[_chestCursor];
+            chest.Remove(id);
+            _player.Inventory.TryGetValue(id, out int have);
+            _player.Inventory[id] = have + count;
+            _chestCursor = Math.Min(_chestCursor, Math.Max(0, GetChestItems().Count - 1));
+        }
+        else // deposit full stack from player → chest
+        {
+            var items = GetPlayerItems();
+            if (items.Count == 0 || _chestCursor >= items.Count) return;
+            var (id, count) = items[_chestCursor];
+            _player.Inventory[id] = 0;
+            chest.TryGetValue(id, out int have);
+            chest[id] = have + count;
+            _chestCursor = Math.Min(_chestCursor, Math.Max(0, GetPlayerItems().Count - 1));
+        }
+    }
+
     void OpenCrate(Vector3Int pos)
     {
         byte crateType = _world.GetVoxel(pos.X, pos.Y, pos.Z);
@@ -1056,6 +1161,8 @@ public class Game
         _blackoutNight            = false;
         _cursedNight              = false;
         _ghostKills               = 0;
+        _chestOpen                = false;
+        _chestContents.Clear();
         _shakeTimer               = 0f;
         _meleeCombo               = 0;
         _maxComboNight            = 0;
@@ -1317,6 +1424,7 @@ public class Game
         DrawHUD();
 
         if (_craftingOpen)            DrawCraftingUI();
+        if (_chestOpen)               DrawChestUI();
         if (_pauseOpen)               DrawPauseScreen();
         if (_daySummaryTimer > 0 && !_pauseOpen) DrawDaySummary();
         if (_gameOver)                DrawGameOver();
@@ -1566,6 +1674,11 @@ public class Game
                 DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)40,(byte)40,(byte)55,(byte)255));
                 DrawText("TRET", bx+2, hotbarY+14, 10, new Color((byte)100,(byte)200,(byte)100,(byte)255));
             }
+            else if (slot.blockId == 21)
+            {
+                DrawRectangle(bx+4, hotbarY+4, 32, 32, new Color((byte)130,(byte)80,(byte)20,(byte)255));
+                DrawText("CHST", bx+2, hotbarY+14, 10, new Color((byte)220,(byte)170,(byte)80,(byte)255));
+            }
             else if (slot.blockId != 0)
             {
                 var col = Blocks.Get(slot.blockId).Color;
@@ -1579,6 +1692,7 @@ public class Game
         bool nc  = NearCraftingTable();
         var  nearCratePos = FindNearbyCrate();
         bool ncr = nearCratePos.HasValue;
+        bool nch = FindNearbyChest().HasValue;
         bool ncf = NearCampfire();
 
         string crateHint = "E: Open Loot Crate";
@@ -1591,6 +1705,7 @@ public class Game
         }
 
         string hint = ncr ? crateHint
+                    : nch ? "E: Open Chest  (←→ switch panel  ↑↓ select  Enter transfer)"
                     : nc  ? "E: Open Crafting Table"
                     : ncf ? "CAMPFIRE: Hunger + Thirst restoring"
                     : _player.Explosives > 0
@@ -2038,6 +2153,7 @@ public class Game
                 10 or 14 or 15
                          => new Color((byte)220,(byte)160,(byte)30,(byte)255),
                 13       => new Color((byte)200,(byte)80,(byte)20,(byte)255),
+                21       => new Color((byte)180,(byte)110,(byte)35,(byte)255), // chest: warm honey
                 18       => new Color((byte)210,(byte)180,(byte)100,(byte)255), // sand
                 4 or 5 or 12
                          => new Color((byte)180,(byte)180,(byte)200,(byte)255),
@@ -2113,6 +2229,71 @@ public class Game
             ? $"↑↓ Navigate ({_recipeScrollOffset+1}-{Math.Min(_recipeScrollOffset+CraftVisible, Recipes.Length)}/{Recipes.Length})   Enter Craft   ESC Close"
             : "↑↓ Navigate   Enter Craft   ESC Close";
         DrawText(footer, px+pw/2 - MeasureText(footer,11)/2, py+ph-22, 11, Color.DarkGray);
+    }
+
+    void DrawChestUI()
+    {
+        int sw = GetScreenWidth(), sh = GetScreenHeight();
+        const int PW = 560, PH = 300;
+        int px = sw/2 - PW/2, py = sh/2 - PH/2;
+
+        DrawRectangle(px, py, PW, PH, new Color((byte)18,(byte)10,(byte)4,(byte)235));
+        DrawRectangleLines(px, py, PW, PH, new Color((byte)160,(byte)100,(byte)30,(byte)255));
+        string title = "CHEST";
+        DrawText(title, px + PW/2 - MeasureText(title, 20)/2, py + 10, 20,
+            new Color((byte)210,(byte)150,(byte)50,(byte)255));
+        DrawLine(px+10, py+36, px+PW-10, py+36, new Color((byte)120,(byte)75,(byte)25,(byte)255));
+
+        // Divider between the two panels
+        int midX = px + PW/2;
+        DrawLine(midX, py+42, midX, py+PH-44, new Color((byte)100,(byte)60,(byte)20,(byte)180));
+
+        var ci = GetChestItems();
+        var pi = GetPlayerItems();
+        const int RowH = 26, StartY = 48, MaxRows = 8;
+
+        // Panel headers
+        Color chHdr = _chestPanel == 0
+            ? new Color((byte)220,(byte)160,(byte)60,(byte)255) : Color.DarkGray;
+        Color plHdr = _chestPanel == 1
+            ? new Color((byte)220,(byte)160,(byte)60,(byte)255) : Color.DarkGray;
+        DrawText("STORED", px+12, py+StartY, 14, chHdr);
+        DrawText("YOUR PACK", midX+12, py+StartY, 14, plHdr);
+
+        const int ListY = StartY + 20;
+
+        // Chest column
+        if (ci.Count == 0)
+            DrawText("(empty)", px+18, py+ListY, 14, Color.DarkGray);
+        else
+            for (int i = 0; i < Math.Min(MaxRows, ci.Count); i++)
+            {
+                int ry = py + ListY + i * RowH;
+                bool sel = _chestPanel == 0 && i == _chestCursor;
+                if (sel) DrawRectangle(px+6, ry-2, PW/2-12, RowH-1,
+                    new Color((byte)80,(byte)50,(byte)15,(byte)160));
+                var (id, cnt) = ci[i];
+                DrawText($"{(sel ? "►" : " ")} {Blocks.Get(id).Name}: {cnt}",
+                    px+14, ry, 14, sel ? Color.White : Color.LightGray);
+            }
+
+        // Player column
+        if (pi.Count == 0)
+            DrawText("(empty)", midX+18, py+ListY, 14, Color.DarkGray);
+        else
+            for (int i = 0; i < Math.Min(MaxRows, pi.Count); i++)
+            {
+                int ry = py + ListY + i * RowH;
+                bool sel = _chestPanel == 1 && i == _chestCursor;
+                if (sel) DrawRectangle(midX+6, ry-2, PW/2-12, RowH-1,
+                    new Color((byte)80,(byte)50,(byte)15,(byte)160));
+                var (id, cnt) = pi[i];
+                DrawText($"{(sel ? "►" : " ")} {Blocks.Get(id).Name}: {cnt}",
+                    midX+14, ry, 14, sel ? Color.White : Color.LightGray);
+            }
+
+        const string Footer = "↑↓ Select   ←→ Switch Panel   Enter: Transfer All   E/ESC Close";
+        DrawText(Footer, px + PW/2 - MeasureText(Footer, 11)/2, py+PH-28, 11, Color.DarkGray);
     }
 
     bool CanAfford(Recipe r)
