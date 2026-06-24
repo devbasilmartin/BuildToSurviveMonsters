@@ -6,6 +6,30 @@ Repo: https://github.com/devbasilmartin/BuildToSurviveMonsters
 
 ---
 
+## Sprint 28 — Ghost Hunter Achievement + Cursed Night  *(2026-06-23)*
+
+**Ghost Hunter achievement** (#16)
+- Tracks ghost kills across a run via `_ghostKills` counter in Game.cs
+- `AwardKill` increments `_ghostKills` when `z.IsGhost`
+- Unlocks at 10 ghost kills — encourages melee-focused play on ghost nights (ghosts are immune to bullets)
+- Resets on restart
+
+**Cursed Night event** (~8% chance, night 3+)
+- One of three random curse variants assigned at night start:
+  - **RABID**: all zombies move at 1.5× speed (stacks with Berserk → 3× total on combined nights)
+  - **ENRAGED**: all zombies deal 2× melee damage to the player (`DamageMultiplier` field, now wired into `Zombie.Update`)
+  - **SPECTRAL**: all zombies have 50% bullet resistance (`BulletResistance` field applied in `UpdateBullets`)
+- `[CURSED: TYPE!]` appended to wave preview banner
+- `CURSED:TYPE` label displayed on-screen during the night (purple, alongside FOG/BERSERK/BLACKOUT)
+- `_cursedNight` resets to false at day start
+
+**Berserk SpeedMult bug fix**
+- Previously, `SpeedMult = 2f` was applied in Game's `OnNightStart` lambda, which fires *before* `WaveSpawner.SpawnWave` — so it applied to 0 zombies (empty Active list)
+- Fixed by subscribing `ApplyNightModifiers()` to `OnNightStart` *after* WaveSpawner creation, so it fires third (after SpawnWave populates Active)
+- All night modifiers (berserk speed, cursed buffs) now correctly apply to every spawned zombie
+
+---
+
 ## Sprint 27 — Control Remap & Left-Click Mode Indicator  *(2026-06-21)*
 
 **Throw explosive: G → Q**
@@ -627,6 +651,5 @@ Only the off-convention action key (throw) moved.
 - [ ] Sound effects (gunshot, melee swing, zombie groan, campfire crackle)
 - [ ] Save/load world state
 - [ ] Chest block: placeable storage, right-click opens inventory UI
-- [ ] "Ghost Hunter" achievement: kill 10 ghost zombies
-- [ ] Cursed Night event: all zombies gain a random special type on spawn
+- [ ] Cursed Night — add "per-zombie random type" variant (each zombie independently rolls its curse, not one type per night)
 - [ ] Player size-up: eating 5 food at once gives brief +range melee

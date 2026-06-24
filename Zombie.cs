@@ -25,8 +25,9 @@ public class Zombie
     public bool IsGigant   { get; private set; }
     public bool IsGhost    { get; private set; }
     public int  XPReward   { get; private set; }
-    public float SpeedMult       = 1f;
-    public float DamageMultiplier = 1f;  // set by cursed night
+    public float SpeedMult        = 1f;
+    public float DamageMultiplier = 1f;  // set by cursed night (ENRAGED: 2x damage to player)
+    public float BulletResistance = 1f;  // set by cursed night (SPECTRAL: 0.5 = half bullet dmg)
     readonly VoxelWorld _world;
 
     public Zombie(VoxelWorld world, Vector3 pos, int nightCount = 1, bool isRunner = false, bool isBoss = false, bool isArmoured = false, bool isCrawler = false, bool isShaman = false, bool isPoison = false, bool isGigant = false, bool isGhost = false)
@@ -147,7 +148,7 @@ public class Zombie
                 _attackTimer = 0f;
                 if (!player.Invincible)
                 {
-                    player.TakeDamage((int)_damage);
+                    player.TakeDamage((int)(_damage * DamageMultiplier));
                     if (IsPoison)
                         player.PoisonTimer = Math.Max(player.PoisonTimer, 10f);
                 }

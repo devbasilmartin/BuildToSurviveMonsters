@@ -35,6 +35,9 @@ public class Game
     bool    _rainDaySurvived       = false;
     bool    _berserkNight          = false;
     bool    _blackoutNight         = false;
+    bool    _cursedNight           = false;
+    int     _cursedType            = 0;    // 0=RABID 1=ENRAGED 2=SPECTRAL
+    int     _ghostKills            = 0;
     float   _shakeTimer            = 0f;
     float   _shakeIntensity        = 0f;
     int     _meleeCombo            = 0;
@@ -161,6 +164,7 @@ public class Game
             new() { Name="Untouchable",      Description="Survive a full respawn invincibility" },
             new() { Name="Combo King",       Description="Reach x10 melee combo in one night" },
             new() { Name="Gigant Slayer",    Description="Kill a Gigant zombie" },
+            new() { Name="Ghost Hunter",     Description="Kill 10 ghost zombies" },
         };
 
         // Day/night
@@ -185,15 +189,18 @@ public class Game
             if (b)     _waveBannerMsg += "  +  BOSS!";
             if (_fogNight)      _waveBannerMsg += "   [FOG]";
             if (_blackoutNight) _waveBannerMsg += "   [BLACKOUT!]";
-            // Double-wave before berserk so SpeedMult applies to all
             _berserkNight = _rng.Next(8) == 0;
             if (_rng.Next(5) == 0) { _waves.ForceExtraSpawn(); _waveBannerMsg += "   [DOUBLE WAVE!]"; }
-            if (_berserkNight)
+            if (_berserkNight) _waveBannerMsg += "   [BERSERK!]";
+            // Cursed Night (~8% chance, night 3+): all zombies gain a random buff
+            _cursedNight = _dnc.NightCount >= 3 && _rng.Next(12) == 0;
+            if (_cursedNight)
             {
-                foreach (var z in _waves.Active) z.SpeedMult = 2f;
-                _waveBannerMsg += "   [BERSERK!]";
+                _cursedType = _rng.Next(3);
+                string cn = _cursedType == 0 ? "RABID" : _cursedType == 1 ? "ENRAGED" : "SPECTRAL";
+                _waveBannerMsg += $"   [CURSED: {cn}!]";
             }
-            // Check for gigant in wave
+            // Check for gigant in wave (only detects gigant if ForceExtraSpawn ran first)
             foreach (var z in _waves.Active)
                 if (z.IsGigant) { _waveBannerMsg += "   [GIGANT!]"; break; }
             _waveBannerTimer = 4f;
@@ -208,6 +215,7 @@ public class Game
             _fogNight      = false;
             _berserkNight  = false;
             _blackoutNight = false;
+            _cursedNight   = false;
             _rainDay      = _rng.Next(5) == 0;
             _player.SlowFactor = _rainDay ? 0.75f : 1f;
             if (_rainDay) _lightningTimer = 15f + _rng.Next(16); // 15-30s to first strike
@@ -215,6 +223,8 @@ public class Game
 
         // Enemies
         _waves = new WaveSpawner(_world, _dnc);
+        // Subscribe AFTER WaveSpawner so this fires after SpawnWave populates Active
+        _dnc.OnNightStart += ApplyNightModifiers;
 
         // Camera — updated every frame from player position/look
         _camera = new Camera3D(
@@ -510,6 +520,20 @@ public class Game
         _deathCount++;
     }
 
+    void ApplyNightModifiers()
+    {
+        foreach (var z in _waves.Active)
+        {
+            if (_berserkNight) z.SpeedMult = 2f;
+            if (_cursedNight)
+            {
+                if (_cursedType == 0)      z.SpeedMult       *= 1.5f; // RABID: 1.5x speed (stacks with berserk)
+                else if (_cursedType == 1) z.DamageMultiplier = 2f;   // ENRAGED: 2x melee damage to player
+                else                       z.BulletResistance = 0.5f; // SPECTRAL: half bullet damage
+            }
+        }
+    }
+
     void UpdateTurrets()
     {
         var pv = VoxelWorld.WorldToVoxel(_player.Position);
@@ -658,6 +682,7 @@ public class Game
         _player.Ammo += _rng.Next(1, 4);
         if (z.IsBoss)        _bossKilled    = true;
         if (fromMelee)       _meleeKillMade = true;
+        if (z.IsGhost)       _ghostKills++;
         if (z.IsGigant)
         {
             _gigantKilled = true;
@@ -709,6 +734,7 @@ public class Game
         UnlockAch(12, _invincibilityCompleted);
         UnlockAch(13, _maxComboNight >= 10);
         UnlockAch(14, _gigantKilled);
+        UnlockAch(15, _ghostKills >= 10);
     }
 
     void UnlockAch(int idx, bool condition)
@@ -792,7 +818,7 @@ public class Game
                     if (hitBody || hitHead)
                     {
                         bool wasDead = z.IsDead;
-                        int bulletDmg = (z.IsArmoured ? GunDamage / 4 : GunDamage) + _prestigeLevel * 10;
+                        int bulletDmg = (int)(((z.IsArmoured ? GunDamage / 4 : GunDamage) + _prestigeLevel * 10) * z.BulletResistance);
                         z.TakeDamage(bulletDmg);
                         if (z.IsDead && !wasDead) { AwardKill(z); }
                         dead = true;
@@ -1028,6 +1054,8 @@ public class Game
         _rainDaySurvived          = false;
         _berserkNight             = false;
         _blackoutNight            = false;
+        _cursedNight              = false;
+        _ghostKills               = 0;
         _shakeTimer               = 0f;
         _meleeCombo               = 0;
         _maxComboNight            = 0;
@@ -1426,8 +1454,17 @@ public class Game
             weatherY -= 26;
         }
         if (_blackoutNight && _dnc.Phase == DayPhase.Night)
+        {
             DrawText("BLACKOUT", sw - MM_SIZE - 10, weatherY, 18,
                 new Color((byte)200,(byte)200,(byte)210,(byte)180));
+            weatherY -= 26;
+        }
+        if (_cursedNight && _dnc.Phase == DayPhase.Night)
+        {
+            string cn = _cursedType == 0 ? "CURSED:RABID" : _cursedType == 1 ? "CURSED:ENRAGED" : "CURSED:SPECTRAL";
+            DrawText(cn, sw - MM_SIZE - 10, weatherY, 16,
+                new Color((byte)200,(byte)80,(byte)220,(byte)220));
+        }
 
         // Kill count + death count (left of minimap)
         DrawText($"Kills: {_killCount}", sw - MM_SIZE - 100, 10, 18, Color.Orange);
