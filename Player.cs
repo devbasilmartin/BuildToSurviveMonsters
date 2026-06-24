@@ -78,18 +78,26 @@ public class Player
 
     public void Update(float dt)
     {
+        HandleLook();
         HandleMovement(dt);
         HandleMining(dt);
         HandleHotbar();
+    }
+
+    void HandleLook()
+    {
+        var d = GetMouseDelta();
+        Yaw   += d.X * Sensitivity;
+        Pitch  = Math.Clamp(Pitch - d.Y * Sensitivity, -89f, 89f);
     }
 
     // ── Movement + voxel AABB collision ──────────────────────────────────────
 
     void HandleMovement(float dt)
     {
-        // Fixed world-space axes — W/S = world +Z/-Z, A/D = world +X/-X
-        Vector3 forward = new(0, 0, 1);
-        Vector3 right   = new(1, 0, 0);
+        float yR = Yaw * MathF.PI / 180f;
+        Vector3 forward = new(MathF.Sin(yR), 0, MathF.Cos(yR));
+        Vector3 right   = new(MathF.Cos(yR), 0, -MathF.Sin(yR));
 
         Vector3 move = Vector3.Zero;
         if (IsKeyDown(KeyboardKey.W) || IsKeyDown(KeyboardKey.Up))    move += forward;
@@ -186,7 +194,7 @@ public class Player
         PlaceVoxel  = null;
 
         var mRay = GetMouseRay(GetMousePosition(), Camera);
-        if (_world.Raycast(mRay.Position, mRay.Direction, 30f, out var hit, out var face))
+        if (_world.Raycast(mRay.Position, mRay.Direction, 8f, out var hit, out var face))
         {
             TargetVoxel = hit;
             PlaceVoxel  = hit + face;
