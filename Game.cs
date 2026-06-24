@@ -36,8 +36,10 @@ public class Game
     bool    _berserkNight          = false;
     bool    _blackoutNight         = false;
     bool    _cursedNight           = false;
-    int     _cursedType            = 0;    // 0=RABID 1=ENRAGED 2=SPECTRAL
     int     _ghostKills            = 0;
+    float   _gorgeTimer            = 0f;  // >0 while gorge buff active
+    float   _eatWindow             = 0f;  // rolling window for burst-eat tracking
+    int     _eatBurst              = 0;   // foods eaten within current window
     bool    _chestOpen             = false;
     Vector3Int _openChestPos;
     int     _chestPanel            = 0;   // 0=chest contents, 1=player inventory
@@ -197,14 +199,10 @@ public class Game
             _berserkNight = _rng.Next(8) == 0;
             if (_rng.Next(5) == 0) { _waves.ForceExtraSpawn(); _waveBannerMsg += "   [DOUBLE WAVE!]"; }
             if (_berserkNight) _waveBannerMsg += "   [BERSERK!]";
-            // Cursed Night (~8% chance, night 3+): all zombies gain a random buff
+            // Cursed Night (~8% chance, night 3+): each zombie independently rolls RABID/ENRAGED/SPECTRAL
             _cursedNight = _dnc.NightCount >= 3 && _rng.Next(12) == 0;
             if (_cursedNight)
-            {
-                _cursedType = _rng.Next(3);
-                string cn = _cursedType == 0 ? "RABID" : _cursedType == 1 ? "ENRAGED" : "SPECTRAL";
-                _waveBannerMsg += $"   [CURSED: {cn}!]";
-            }
+                _waveBannerMsg += "   [CURSED:MIXED!]";
             // Check for gigant in wave (only detects gigant if ForceExtraSpawn ran first)
             foreach (var z in _waves.Active)
                 if (z.IsGigant) { _waveBannerMsg += "   [GIGANT!]"; break; }
@@ -342,7 +340,7 @@ public class Game
         }
         if (_clearBannerTimer > 0) _clearBannerTimer -= dt;
 
-        // F = eat food (bonus heal when eating at 90+ hunger — overfed)
+        // F = eat food (bonus heal when eating at 90+ hunger — overfed; 5 rapid eats = gorge buff)
         if (IsKeyPressed(KeyboardKey.F))
         {
             _player.Inventory.TryGetValue(11, out int food);
@@ -353,7 +351,12 @@ public class Game
                 _player.Hunger = Math.Min(100f, _player.Hunger + 45f);
                 _player.Thirst = Math.Min(100f, _player.Thirst + 20f);
                 if (overfed)
-                    _player.HP = Math.Min(_player.MaxHP, _player.HP + 15); // bonus heal
+                    _player.HP = Math.Min(_player.MaxHP, _player.HP + 15);
+                // Gorge: 5 foods within 4s → 8s extended melee range
+                if (_eatWindow <= 0f) _eatBurst = 0;
+                _eatBurst++;
+                _eatWindow = 4f;
+                if (_eatBurst >= 5) { _gorgeTimer = 8f; _eatBurst = 0; }
             }
         }
 
@@ -539,6 +542,8 @@ public class Game
 
         // Wave preview banner timer
         if (_waveBannerTimer > 0) _waveBannerTimer -= dt;
+        if (_eatWindow  > 0) _eatWindow  -= dt;
+        if (_gorgeTimer > 0) _gorgeTimer -= dt;
 
         // Day summary timer
         if (_daySummaryTimer > 0)
@@ -587,9 +592,13 @@ public class Game
             if (_berserkNight) z.SpeedMult = 2f;
             if (_cursedNight)
             {
-                if (_cursedType == 0)      z.SpeedMult       *= 1.5f; // RABID: 1.5x speed (stacks with berserk)
-                else if (_cursedType == 1) z.DamageMultiplier = 2f;   // ENRAGED: 2x melee damage to player
-                else                       z.BulletResistance = 0.5f; // SPECTRAL: half bullet damage
+                // Each zombie independently rolls its curse variant
+                switch (_rng.Next(3))
+                {
+                    case 0: z.SpeedMult       *= 1.5f; break; // RABID: faster
+                    case 1: z.DamageMultiplier = 2f;   break; // ENRAGED: double melee damage
+                    default: z.BulletResistance = 0.5f; break; // SPECTRAL: half bullet damage
+                }
             }
         }
     }
@@ -713,7 +722,7 @@ public class Game
         {
             if (z.IsDead) continue;
             float dist = Vector3.Distance(_player.Position, z.Position);
-            if (dist > 2.2f) continue;
+            if (dist > (_gorgeTimer > 0 ? 3.5f : 2.2f)) continue;
             Vector3 toZ = Vector3.Normalize(z.Position - _player.Position);
             toZ = new Vector3(toZ.X, 0, toZ.Z);
             if (toZ.LengthSquared() > 0 && Vector3.Dot(fwd2D, Vector3.Normalize(toZ)) > 0.3f)
@@ -1177,6 +1186,9 @@ public class Game
         _blackoutNight            = false;
         _cursedNight              = false;
         _ghostKills               = 0;
+        _gorgeTimer               = 0f;
+        _eatWindow                = 0f;
+        _eatBurst                 = 0;
         _chestOpen                = false;
         _chestContents.Clear();
         _shakeTimer               = 0f;
@@ -1452,9 +1464,15 @@ public class Game
         }
         if (_cursedNight && _dnc.Phase == DayPhase.Night)
         {
-            string cn = _cursedType == 0 ? "CURSED:RABID" : _cursedType == 1 ? "CURSED:ENRAGED" : "CURSED:SPECTRAL";
-            DrawText(cn, sw - MM_SIZE - 10, weatherY, 16,
+            DrawText("CURSED:MIXED", sw - MM_SIZE - 10, weatherY, 16,
                 new Color((byte)200,(byte)80,(byte)220,(byte)220));
+            weatherY -= 24;
+        }
+        if (_gorgeTimer > 0)
+        {
+            float gp = (MathF.Sin((float)GetTime() * 8f) + 1f) * 0.5f;
+            DrawText("GORGE!", sw - MM_SIZE - 10, weatherY, 18,
+                new Color((byte)255,(byte)200,(byte)60,(byte)(int)(gp * 80 + 175)));
         }
 
         // Kill count + death count (left of minimap)
@@ -1592,8 +1610,8 @@ public class Game
                     : nc  ? "E: Open Crafting Table"
                     : ncf ? "CAMPFIRE: Hunger + Thirst restoring"
                     : _player.Explosives > 0
-            ? "Q: Throw Explosive  WASD move  LClick shoot/swing  RClick build  F eat  H help"
-            : "WASD move  LClick shoot/mine/swing  RClick build  F eat  Space jump  H help";
+            ? "Q throw  WASD move  Mouse aim  LClick shoot/swing  RClick build  F eat  H help"
+            : "WASD move  Mouse aim  LClick shoot/mine  RClick build  F eat  Space jump  H help";
         Color hintCol = (ncr || nc) ? Color.Yellow
                       : ncf         ? new Color((byte)255,(byte)150,(byte)50,(byte)255)
                       : Color.Gray;
@@ -1867,7 +1885,7 @@ public class Game
             ("WASD / Arrows", "Move"),
             ("Space",         "Jump"),
             ("Shift (hold)",  "Sprint (uses stamina)"),
-            ("Mouse",         "Look"),
+            ("Mouse",         "Aim (isometric cursor)"),
             ("",              ""),
             ("Left Click",    "Shoot / Mine / Swing"),
             ("Right Click",   "Place block from hotbar"),
